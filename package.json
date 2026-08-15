@@ -1,0 +1,16 @@
+{
+  "name": "mvp",
+  "version": "1.0.0",
+  "description": "```powershell php -S 127.0.0.1:8080 index.php ```",
+  "main": "admin_fix.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "playwright": "^1.62.1"
+  }
+}
