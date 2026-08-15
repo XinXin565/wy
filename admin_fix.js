@@ -28,10 +28,7 @@ window.adminApiRequest = async function adminApiRequest(url, options = {}) {
   setInterval(initArchiveView,500); setTimeout(initArchiveView,200);
 })();
 
-// Keep the canonical P1 renderer in control when legacy pagination finishes an async request.
-(() => { setInterval(() => { const page=document.querySelector('#licenses'); if(page?.classList.contains('active') && typeof window.renderLicenses==='function') window.renderLicenses(); }, 1800); })();
 (() => { setInterval(() => { ['cfgAnnEnabled','cfgForceRead','cfgForceUpdate'].forEach(id=>{const n=document.getElementById(id);if(n){n.style.display='inline-block';n.style.width='18px';n.style.height='18px';n.style.opacity='1';}}); }, 300); })();
-(() => { setInterval(() => { const body=document.querySelector('#licenseRows'); if(!body) return; body.querySelectorAll('tr').forEach((row) => { const check=row.querySelector('.keyCheck'); const action=row.lastElementChild; if(!check||!action||action.querySelector('[data-fallback-suspend]')) return; const status=(row.children[3]?.textContent||''); const b=document.createElement('button'); b.className='layui-btn layui-btn-xs layui-btn-warm'; b.dataset.fallbackSuspend='1'; b.textContent=status.includes('封禁')?'解封':'封禁'; b.onclick=()=>window.toggleSuspend?.(check.value,status.includes('封禁')); action.insertBefore(b,action.firstChild); }); }, 500); })();
 
 (() => {
   const nativeFetch = window.fetch.bind(window); let tokenPromise;
