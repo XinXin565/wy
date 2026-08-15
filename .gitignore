@@ -1,0 +1,8 @@
+storage.sqlite
+storage.sqlite-*
+rsa_private.pem
+php-runtime/
+node_modules/
+cpp_client/*.obj
+cpp_client/*.pdb
+cpp_client/*.ilk
