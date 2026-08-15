@@ -25,7 +25,7 @@ constexpr UINT WM_HEARTBEAT_STATUS = WM_APP + 1;
 std::atomic_bool heartbeat_running{false};
 std::atomic_bool logout_sent{false};
 std::string active_license;
-const std::string PRODUCT_CODE = "debug";
+const std::string PRODUCT_CODE = "1";
 const std::string PRODUCT_NAME = "debug";
 const std::string CLIENT_VERSION = "3.0.0";
 std::atomic_bool product_ready{false};
