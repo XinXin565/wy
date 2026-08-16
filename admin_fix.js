@@ -51,6 +51,8 @@ let adminCsrfPromise;
     .layui-layout-admin .layui-side-scroll{width:224px!important;background:transparent!important;padding-top:12px}
     .layui-layout-admin .layui-nav-tree{background:transparent!important;padding-top:24px}
     .layui-layout-admin .layui-nav-tree:before{content:'工作台';display:block;padding:0 22px 8px;color:#82979e;font-size:11px;letter-spacing:.16em}
+    .layui-layout-admin .layui-nav-tree .layui-nav-item,.layui-layout-admin .layui-nav-tree .layui-nav-item.layui-this{background:transparent!important}
+    .layui-layout-admin .layui-nav-tree .layui-nav-item:before,.layui-layout-admin .layui-nav-tree .layui-nav-item:after{display:none!important}
     .layui-nav-tree .layui-nav-item>a{height:48px;line-height:48px;margin:4px 12px;padding:0 14px;border:1px solid transparent;border-radius:13px;color:#486270!important;font-weight:550;transition:background .2s ease,color .2s ease,transform .2s ease,box-shadow .2s ease}
     .layui-nav-tree .layui-nav-item>a .layui-icon{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;margin-right:10px;border-radius:8px;background:rgba(255,255,255,.48);color:#6d8792;transition:color .2s ease,background .2s ease}
     .layui-nav-tree .layui-nav-item>a:hover{background:rgba(255,255,255,.56)!important;border-color:rgba(255,255,255,.74);color:#173e4e!important;transform:translateX(2px)}
