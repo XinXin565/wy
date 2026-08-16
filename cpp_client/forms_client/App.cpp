@@ -9,10 +9,28 @@
 
 using namespace System;
 using namespace System::Drawing;
+using namespace System::Drawing::Drawing2D;
 using namespace System::Threading;
 using namespace System::Windows::Forms;
 
 static LicenseSdk::LicenseSession session;
+
+public ref class GlassPanel : public Panel {
+public:
+    GlassPanel() { DoubleBuffered = true; BackColor = Color::Transparent; }
+protected:
+    virtual void OnPaintBackground(PaintEventArgs^ e) override {
+        e->Graphics->SmoothingMode = SmoothingMode::AntiAlias;
+        System::Drawing::Rectangle rect = ClientRectangle; rect.Inflate(-1, -1);
+        GraphicsPath^ path = gcnew GraphicsPath();
+        int r = 18;
+        path->AddArc((float)rect.Left, (float)rect.Top, (float)r, (float)r, 180.0f, 90.0f); path->AddArc((float)(rect.Right-r), (float)rect.Top, (float)r, (float)r, 270.0f, 90.0f);
+        path->AddArc((float)(rect.Right-r), (float)(rect.Bottom-r), (float)r, (float)r, 0.0f, 90.0f); path->AddArc((float)rect.Left, (float)(rect.Bottom-r), (float)r, (float)r, 90.0f, 90.0f); path->CloseFigure();
+        LinearGradientBrush^ fill = gcnew LinearGradientBrush(rect, Color::FromArgb(224,255,255,255), Color::FromArgb(184,224,242,245), 130.0f);
+        e->Graphics->FillPath(fill, path);
+        e->Graphics->DrawPath(gcnew Pen(Color::FromArgb(210,255,255,255), 1.0f), path);
+    }
+};
 
 static std::string to_utf8(String^ value) {
     return wide_to_utf8(msclr::interop::marshal_as<std::wstring>(value));
@@ -76,12 +94,8 @@ public:
         Text = L"心跳验证详情";
         Width = 500; Height = 300;
         StartPosition = FormStartPosition::CenterParent;
-        state = gcnew Label();
-        state->Dock = DockStyle::Fill;
-        state->Padding = System::Windows::Forms::Padding(28);
-        state->Font = gcnew System::Drawing::Font(L"Microsoft YaHei UI", 11);
-        state->Text = L"状态：在线\r\n心跳间隔：5 秒\r\n传输协议：v3 LK3/LR3";
-        Controls->Add(state);
+        auto panel = gcnew GlassPanel(); panel->Location = Point(24, 24); panel->Size = Drawing::Size(452, 190); Controls->Add(panel);
+        state = gcnew Label(); state->Location = Point(24, 24); state->Size = Drawing::Size(404, 140); state->Padding = System::Windows::Forms::Padding(20); state->Font = gcnew System::Drawing::Font(L"Microsoft YaHei UI", 11); state->ForeColor = Color::FromArgb(31, 68, 78); state->Text = L"●  状态：在线\r\n\r\n心跳间隔：5 秒\r\n传输协议：v3 LK3/LR3"; panel->Controls->Add(state);
         running = true;
         worker = gcnew Thread(gcnew ThreadStart(this, &HeartbeatForm::HeartbeatLoop));
         worker->IsBackground = true;
@@ -143,15 +157,17 @@ public:
         Text = L"卡密验证 SDK v3";
         Width = 580; Height = 440;
         StartPosition = FormStartPosition::CenterScreen;
-        BackColor = Color::FromArgb(236, 242, 241);
-        FormBorderStyle = System::Windows::Forms::FormBorderStyle::FixedSingle;
-        auto title = gcnew Label(); title->Text = L"产品授权"; title->Font = gcnew System::Drawing::Font(L"Microsoft YaHei UI", 20, FontStyle::Bold); title->ForeColor = Color::FromArgb(20, 66, 69); title->Location = System::Drawing::Point(36, 25); title->AutoSize = true; Controls->Add(title);
-        version = gcnew Label(); version->Location = Point(40, 73); version->AutoSize = true; version->Text = L"正在读取版本信息..."; Controls->Add(version);
-        notice = gcnew Label(); notice->Location = Point(40, 108); notice->Size = Drawing::Size(485, 78); notice->BorderStyle = BorderStyle::FixedSingle; notice->BackColor = Color::FromArgb(220, 245, 239); notice->ForeColor = Color::FromArgb(37, 71, 72); notice->Padding = System::Windows::Forms::Padding(12); notice->Text = L"正在读取产品公告..."; Controls->Add(notice);
-        auto keyLabel = gcnew Label(); keyLabel->Text = L"卡密"; keyLabel->Location = System::Drawing::Point(40, 207); keyLabel->AutoSize = true; Controls->Add(keyLabel);
-        key = gcnew TextBox(); key->Location = Point(40, 232); key->Width = 485; key->Height = 30; key->Font = gcnew System::Drawing::Font(L"Microsoft YaHei UI", 10); key->BackColor = Color::White; Controls->Add(key);
-        login = gcnew Button(); login->Text = L"登录验证"; login->Location = Point(40, 282); login->Size = Drawing::Size(485, 43); login->BackColor = Color::FromArgb(16, 125, 113); login->FlatStyle = FlatStyle::Flat; login->FlatAppearance->BorderSize = 0; login->ForeColor = Color::White; login->Click += gcnew EventHandler(this, &MainForm::Login); Controls->Add(login);
-        auto footer = gcnew Label(); footer->Text = L"v3 加密传输 | 独立心跳线程 | 5 秒间隔"; footer->Location = Point(40, 350); footer->AutoSize = true; Controls->Add(footer);
+        BackColor = Color::FromArgb(231, 241, 246); FormBorderStyle = System::Windows::Forms::FormBorderStyle::FixedSingle; MaximizeBox = false;
+        auto title = gcnew Label(); title->Text = L"产品授权"; title->Font = gcnew System::Drawing::Font(L"Microsoft YaHei UI", 20, FontStyle::Bold); title->ForeColor = Color::FromArgb(20, 66, 78); title->Location = Point(34, 22); title->AutoSize = true; Controls->Add(title);
+        auto product = gcnew Label(); product->Text = L"XINGODSKJH  /  授权中心"; product->ForeColor = Color::FromArgb(21, 150, 181); product->Font = gcnew System::Drawing::Font(L"Microsoft YaHei UI", 8, FontStyle::Bold); product->Location = Point(38, 58); product->AutoSize = true; Controls->Add(product);
+        version = gcnew Label(); version->Location = Point(38, 82); version->AutoSize = true; version->ForeColor = Color::FromArgb(91, 119, 128); version->Text = L"正在读取版本信息..."; Controls->Add(version);
+        auto noticePanel = gcnew GlassPanel(); noticePanel->Location = Point(32, 112); noticePanel->Size = Drawing::Size(500, 78); Controls->Add(noticePanel);
+        notice = gcnew Label(); notice->Location = Point(16, 12); notice->Size = Drawing::Size(468, 52); notice->ForeColor = Color::FromArgb(37, 71, 72); notice->Text = L"正在读取产品公告..."; notice->AutoEllipsis = true; noticePanel->Controls->Add(notice);
+        auto authPanel = gcnew GlassPanel(); authPanel->Location = Point(32, 210); authPanel->Size = Drawing::Size(500, 126); Controls->Add(authPanel);
+        auto keyLabel = gcnew Label(); keyLabel->Text = L"卡密"; keyLabel->Location = Point(18, 14); keyLabel->AutoSize = true; keyLabel->ForeColor = Color::FromArgb(57, 87, 96); authPanel->Controls->Add(keyLabel);
+        key = gcnew TextBox(); key->Location = Point(18, 40); key->Width = 464; key->Height = 30; key->Font = gcnew System::Drawing::Font(L"Microsoft YaHei UI", 10); key->BorderStyle = BorderStyle::FixedSingle; key->BackColor = Color::FromArgb(246, 252, 253); authPanel->Controls->Add(key);
+        login = gcnew Button(); login->Text = L"登录验证"; login->Location = Point(18, 78); login->Size = Drawing::Size(464, 34); login->BackColor = Color::FromArgb(21, 150, 181); login->FlatStyle = FlatStyle::Flat; login->FlatAppearance->BorderSize = 0; login->ForeColor = Color::White; login->Click += gcnew EventHandler(this, &MainForm::Login); authPanel->Controls->Add(login);
+        auto footer = gcnew Label(); footer->Text = L"安全传输 v3  ·  独立心跳 5 秒"; footer->Location = Point(38, 362); footer->ForeColor = Color::FromArgb(105, 130, 138); footer->AutoSize = true; Controls->Add(footer);
         Load += gcnew EventHandler(this, &MainForm::Bootstrap);
     }
 private:
@@ -167,17 +183,19 @@ private:
     }
     void Login(Object^, EventArgs^) {
         if (String::IsNullOrWhiteSpace(key->Text)) { MessageBox::Show(L"请输入卡密", L"提示"); return; }
+        login->Enabled = false; login->Text = L"正在验证...";
         try {
             std::string license = to_utf8(key->Text->Trim());
             Response response = secure_post("activate", license);
-            if (response.status != 200) { MessageBox::Show(error_message(response.body), L"登录失败"); return; }
+            if (response.status != 200) { MessageBox::Show(error_message(response.body), L"登录失败"); login->Enabled = true; login->Text = L"登录验证"; return; }
             std::string expires = json_value(response.body, "expires_at");
             session.set({license, PRODUCT_CODE, PRODUCT_NAME, device_code(), expires, true});
             Response cloud = secure_execute(session.get(), "get_security_parameters", "{}");
             String^ cloudState = cloud.status == 200 ? L"云配置读取成功" : L"云配置读取失败：" + error_message(cloud.body);
             MessageBox::Show(L"登录成功\r\n到期时间：" + (expires.empty() ? L"永久" : to_managed(expires)) + L"\r\n" + cloudState, L"登录成功", MessageBoxButtons::OK, MessageBoxIcon::Information);
             heartbeat = gcnew HeartbeatForm(); heartbeat->Show(this);
-        } catch (Exception^ ex) { MessageBox::Show(ex->Message, L"网络错误"); }
+        } catch (Exception^ ex) { MessageBox::Show(L"网络连接失败，请稍后重试", L"网络错误"); }
+        login->Enabled = true; login->Text = L"登录验证";
     }
 };
 
