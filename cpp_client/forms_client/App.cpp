@@ -5,6 +5,7 @@
 #include "../license_test.cpp"
 #undef wWinMain
 #include <msclr/marshal_cppstd.h>
+using namespace System;
 static std::string wide_to_utf8(String^ value){return wide_to_utf8(msclr::interop::marshal_as<std::wstring>(value));}
 using namespace System; using namespace System::Drawing; using namespace System::Windows::Forms;
 
