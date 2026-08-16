@@ -45,15 +45,18 @@ let adminCsrfPromise;
     body{background:linear-gradient(135deg,#eef4f2 0%,#e7edf3 48%,#f7f4ee 100%);color:var(--ink);font-family:"Microsoft YaHei UI","Segoe UI",sans-serif}
     .layui-layout-admin .layui-header{background:rgba(245,251,252,.64)!important;border-bottom:1px solid rgba(255,255,255,.84);box-shadow:0 8px 30px rgba(27,67,86,.09);backdrop-filter:blur(24px) saturate(145%);-webkit-backdrop-filter:blur(24px) saturate(145%)}
     .layui-logo{font-weight:700;letter-spacing:.02em;color:#163a4b!important}
-    .layui-layout-admin .layui-side{top:76px!important;bottom:12px!important;left:12px!important;width:196px!important;border:1px solid rgba(255,255,255,.8);border-radius:20px;background:linear-gradient(145deg,rgba(255,255,255,.66),rgba(218,237,241,.46))!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.9),inset 0 -1px 0 rgba(255,255,255,.3),0 20px 48px rgba(24,68,86,.13);backdrop-filter:blur(28px) saturate(150%);-webkit-backdrop-filter:blur(28px) saturate(150%);overflow:hidden}
-    .layui-layout-admin .layui-side-scroll{width:196px!important;background:transparent!important;padding-top:12px}
-    .layui-layout-admin .layui-nav-tree{background:transparent!important}
-    .layui-nav-tree .layui-nav-item>a{height:46px;line-height:46px;margin:6px 10px;padding:0 15px;border:1px solid transparent;border-radius:12px;color:#486270!important;font-weight:550;transition:background .2s ease,color .2s ease,transform .2s ease,box-shadow .2s ease}
-    .layui-nav-tree .layui-nav-item>a .layui-icon{color:#6d8792;transition:color .2s ease}
+    .layui-layout-admin .layui-side{top:76px!important;bottom:auto!important;height:438px;left:12px!important;width:224px!important;border:1px solid rgba(255,255,255,.82);border-radius:22px;background:linear-gradient(155deg,rgba(255,255,255,.72),rgba(205,231,237,.48))!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.94),inset 0 -1px 0 rgba(255,255,255,.35),0 22px 52px rgba(24,68,86,.15);backdrop-filter:blur(30px) saturate(155%);-webkit-backdrop-filter:blur(30px) saturate(155%);overflow:hidden}
+    .layui-layout-admin .layui-side:before{content:'';position:absolute;left:18px;right:18px;top:66px;height:1px;background:linear-gradient(90deg,transparent,rgba(45,105,122,.18),transparent)}
+    .layui-layout-admin .layui-side:after{content:'系统在线  ·  v3';position:absolute;left:20px;right:20px;bottom:18px;padding:10px 12px;border:1px solid rgba(255,255,255,.62);border-radius:10px;background:rgba(255,255,255,.32);color:#6b818a;font-size:11px;letter-spacing:.02em}
+    .layui-layout-admin .layui-side-scroll{width:224px!important;background:transparent!important;padding-top:12px}
+    .layui-layout-admin .layui-nav-tree{background:transparent!important;padding-top:24px}
+    .layui-layout-admin .layui-nav-tree:before{content:'工作台';display:block;padding:0 22px 8px;color:#82979e;font-size:11px;letter-spacing:.16em}
+    .layui-nav-tree .layui-nav-item>a{height:48px;line-height:48px;margin:4px 12px;padding:0 14px;border:1px solid transparent;border-radius:13px;color:#486270!important;font-weight:550;transition:background .2s ease,color .2s ease,transform .2s ease,box-shadow .2s ease}
+    .layui-nav-tree .layui-nav-item>a .layui-icon{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;margin-right:10px;border-radius:8px;background:rgba(255,255,255,.48);color:#6d8792;transition:color .2s ease,background .2s ease}
     .layui-nav-tree .layui-nav-item>a:hover{background:rgba(255,255,255,.56)!important;border-color:rgba(255,255,255,.74);color:#173e4e!important;transform:translateX(2px)}
-    .layui-nav-tree .layui-this>a,.layui-nav-tree .layui-this>a:hover{background:linear-gradient(115deg,rgba(25,155,180,.88),rgba(54,183,172,.75))!important;border-color:rgba(255,255,255,.46);color:#fff!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.42),0 10px 24px rgba(24,139,158,.24);transform:none}
-    .layui-nav-tree .layui-this>a .layui-icon{color:#fff}
-    .layui-layout-admin .layui-body{left:220px!important}
+    .layui-nav-tree .layui-this>a,.layui-nav-tree .layui-this>a:hover{background:linear-gradient(115deg,rgba(25,155,180,.9),rgba(54,183,172,.78))!important;border-color:rgba(255,255,255,.52);color:#fff!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.48),0 10px 24px rgba(24,139,158,.24);transform:none}
+    .layui-nav-tree .layui-this>a .layui-icon{background:rgba(255,255,255,.2);color:#fff}
+    .layui-layout-admin .layui-body{left:248px!important}
     .layui-body{background:transparent!important}
     .layui-card{background:var(--glass-bg);border:1px solid var(--glass-line);border-radius:14px;box-shadow:0 14px 35px rgba(38,61,70,.09);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);overflow:hidden}
     .layui-card-header{border-bottom:1px solid rgba(28,58,66,.08);font-weight:650;color:#19343a}
