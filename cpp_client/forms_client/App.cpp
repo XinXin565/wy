@@ -5,7 +5,12 @@
 #include "../license_test.cpp"
 #undef wWinMain
 #include <msclr/marshal_cppstd.h>
+#include <mutex>
+#include <thread>
+#include <atomic>
 using namespace System;
+static std::string g_session_license;
+static std::mutex g_session_mutex;
 // 云函数 v3 调用：参数和函数名放入 AES-GCM 明文，再使用 RSA-OAEP 封装会话密钥。
 Response secure_execute(const std::string& fn,const std::string& args){std::string path="/api/v3/products/execute",device=device_code();auto key=random_bytes(32),iv=random_bytes(12),nonce=random_bytes(24);std::string plain="{\"product_code\":\""+PRODUCT_CODE+"\",\"function\":\""+json_escape(fn)+"\",\"args\":"+(args.empty()?"{}":args)+",\"device_id\":\""+device+"\",\"_path\":\""+path+"\",\"_timestamp\":\""+std::to_string(std::time(nullptr))+"\",\"_nonce\":\""+b64url(nonce)+"\"}";std::vector<BYTE>tag,bytes(plain.begin(),plain.end()),cipher=aes_gcm(true,key,iv,"",bytes,tag),wrapped=rsa_oaep(key);std::string packet("LK3\0",4);packet.append((char*)wrapped.data(),wrapped.size());packet.append((char*)iv.data(),iv.size());packet.append((char*)tag.data(),tag.size());packet.append((char*)cipher.data(),cipher.size());Response r=http_post(path,packet);if(r.body.size()<32||r.body.compare(0,4,"LR3\0",4)!=0)return r;std::vector<BYTE>riv(r.body.begin()+4,r.body.begin()+16),rtag(r.body.begin()+16,r.body.begin()+32),rc(r.body.begin()+32,r.body.end()),decoded=aes_gcm(false,key,riv,"",rc,rtag);r.body.assign(decoded.begin(),decoded.end());return r;}
 static std::string wide_to_utf8(String^ value){return wide_to_utf8(msclr::interop::marshal_as<std::wstring>(value));}
