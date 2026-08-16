@@ -4,39 +4,182 @@
 #define wWinMain legacy_wWinMain
 #include "../license_test.cpp"
 #undef wWinMain
+#include "sdk/LicenseSession.h"
 #include <msclr/marshal_cppstd.h>
-#include <mutex>
-#include <thread>
-#include <atomic>
+
 using namespace System;
-static std::string g_session_license;
-static std::mutex g_session_mutex;
-// 云函数 v3 调用：参数和函数名放入 AES-GCM 明文，再使用 RSA-OAEP 封装会话密钥。
-Response secure_execute(const std::string& fn,const std::string& args){std::string path="/api/v3/products/execute",device=device_code();auto key=random_bytes(32),iv=random_bytes(12),nonce=random_bytes(24);std::string plain="{\"product_code\":\""+PRODUCT_CODE+"\",\"function\":\""+json_escape(fn)+"\",\"args\":"+(args.empty()?"{}":args)+",\"device_id\":\""+device+"\",\"_path\":\""+path+"\",\"_timestamp\":\""+std::to_string(std::time(nullptr))+"\",\"_nonce\":\""+b64url(nonce)+"\"}";std::vector<BYTE>tag,bytes(plain.begin(),plain.end()),cipher=aes_gcm(true,key,iv,"",bytes,tag),wrapped=rsa_oaep(key);std::string packet("LK3\0",4);packet.append((char*)wrapped.data(),wrapped.size());packet.append((char*)iv.data(),iv.size());packet.append((char*)tag.data(),tag.size());packet.append((char*)cipher.data(),cipher.size());Response r=http_post(path,packet);if(r.body.size()<32||r.body.compare(0,4,"LR3\0",4)!=0)return r;std::vector<BYTE>riv(r.body.begin()+4,r.body.begin()+16),rtag(r.body.begin()+16,r.body.begin()+32),rc(r.body.begin()+32,r.body.end()),decoded=aes_gcm(false,key,riv,"",rc,rtag);r.body.assign(decoded.begin(),decoded.end());return r;}
-static std::string wide_to_utf8(String^ value){return wide_to_utf8(msclr::interop::marshal_as<std::wstring>(value));}
-using namespace System; using namespace System::Drawing; using namespace System::Windows::Forms;
+using namespace System::Drawing;
+using namespace System::Threading;
+using namespace System::Windows::Forms;
 
-// v3 示例客户端：PRODUCT_CODE/CLIENT_VERSION 在 license_test.cpp 中集中配置。
-public ref class HeartbeatForm:public Form{Label^ state;public:HeartbeatForm(){Text=L"\u5fc3\u8df3\u9a8c\u8bc1\u8be6\u60c5";Width=480;Height=300;state=gcnew Label();state->Dock=DockStyle::Fill;state->Padding=System::Windows::Forms::Padding(24);state->Text=L"\u72b6\u6001\uff1a\u8fd0\u884c\u4e2d\n\u5fc3\u8df3\u95f4\u9694\uff1a5\u79d2\n\u4f20\u8f93\u534f\u8bae\uff1av3 LK3/LR3";Controls->Add(state);}};
+static LicenseSdk::LicenseSession session;
 
-public ref class MainForm:public Form{
-    TextBox^ key; Label^ notice; Label^ version; Button^ login; HeartbeatForm^ heartbeat;
+static std::string to_utf8(String^ value) {
+    return wide_to_utf8(msclr::interop::marshal_as<std::wstring>(value));
+}
+
+static String^ to_managed(const std::string& value) {
+    return gcnew String(utf8_to_wide(value).c_str());
+}
+
+static String^ error_message(const std::string& body) {
+    if (body.find("license_suspended") != std::string::npos) return L"卡密已被封禁";
+    if (body.find("license_expired") != std::string::npos) return L"卡密已到期";
+    if (body.find("license_revoked") != std::string::npos) return L"卡密已被撤销";
+    if (body.find("device_not_bound") != std::string::npos) return L"当前设备绑定已失效";
+    if (body.find("device_limit_reached") != std::string::npos) return L"设备数量已达上限";
+    if (body.find("product_name_mismatch") != std::string::npos) return L"客户端产品名称不匹配";
+    if (body.find("invalid_license") != std::string::npos) return L"卡密错误";
+    return L"验证失败：" + to_managed(body);
+}
+
+// v3 云函数传输：卡密、设备和产品信息均位于 LK3 加密载荷中。
+static Response secure_execute(const LicenseSdk::LicenseSessionData& auth,
+                               const std::string& function,
+                               const std::string& args) {
+    const std::string path = "/api/v3/products/execute";
+    auto key = random_bytes(32), iv = random_bytes(12), nonce = random_bytes(24);
+    std::string plain = "{\"license_key\":\"" + json_escape(auth.license_key) +
+        "\",\"product_code\":\"" + json_escape(auth.product_code) +
+        "\",\"product_name\":\"" + json_escape(auth.product_name) +
+        "\",\"function\":\"" + json_escape(function) +
+        "\",\"args\":" + (args.empty() ? "{}" : args) +
+        ",\"device_id\":\"" + json_escape(auth.device_id) +
+        "\",\"_path\":\"" + path +
+        "\",\"_timestamp\":\"" + std::to_string(std::time(nullptr)) +
+        "\",\"_nonce\":\"" + b64url(nonce) + "\"}";
+    std::vector<BYTE> tag, bytes(plain.begin(), plain.end());
+    auto cipher = aes_gcm(true, key, iv, "", bytes, tag);
+    auto wrapped = rsa_oaep(key);
+    std::string packet("LK3\0", 4);
+    packet.append((char*)wrapped.data(), wrapped.size());
+    packet.append((char*)iv.data(), iv.size());
+    packet.append((char*)tag.data(), tag.size());
+    packet.append((char*)cipher.data(), cipher.size());
+    Response response = http_post(path, packet);
+    if (response.body.size() < 32 || response.body.compare(0, 4, "LR3\0", 4) != 0) return response;
+    std::vector<BYTE> responseIv(response.body.begin() + 4, response.body.begin() + 16);
+    std::vector<BYTE> responseTag(response.body.begin() + 16, response.body.begin() + 32);
+    std::vector<BYTE> responseCipher(response.body.begin() + 32, response.body.end());
+    auto decoded = aes_gcm(false, key, responseIv, "", responseCipher, responseTag);
+    response.body.assign(decoded.begin(), decoded.end());
+    return response;
+}
+
+public ref class HeartbeatForm : public Form {
 public:
-    MainForm(){Text=L"\u5361\u5bc6\u9a8c\u8bc1 SDK v3";Width=560;Height=430;StartPosition=FormStartPosition::CenterScreen;BackColor=Color::FromArgb(247,249,252);
-        auto title=gcnew Label();title->Text=L"\u4ea7\u54c1\u6388\u6743";title->Font=gcnew System::Drawing::Font(L"Segoe UI",20,FontStyle::Bold);title->Location=Point(36,28);title->AutoSize=true;Controls->Add(title);
-        version=gcnew Label();version->Text=L"\u6700\u65b0\u7248\u672c\uff1a\u8bfb\u53d6\u4e2d    \u672c\u5730\u7248\u672c\uff1a3.0.0";version->Location=Point(40,72);version->AutoSize=true;Controls->Add(version);
-        notice=gcnew Label();notice->Text=L"\u6b63\u5728\u8fde\u63a5\u670d\u52a1\u5668\u8bfb\u53d6\u4ea7\u54c1\u914d\u7f6e...";notice->Location=Point(40,110);notice->Size=Drawing::Size(465,70);notice->BorderStyle=BorderStyle::FixedSingle;notice->Padding=System::Windows::Forms::Padding(12);Controls->Add(notice);
-        auto label=gcnew Label();label->Text=L"\u5361\u5bc6";label->Location=Point(40,205);label->AutoSize=true;Controls->Add(label);key=gcnew TextBox();key->Location=Point(40,230);key->Width=465;Controls->Add(key);
-        login=gcnew Button();login->Text=L"\u767b\u5f55\u9a8c\u8bc1";login->Location=Point(40,280);login->Width=465;login->Height=42;login->BackColor=Color::FromArgb(35,99,235);login->ForeColor=Color::White;login->Click+=gcnew EventHandler(this,&MainForm::Login);Controls->Add(login);
-        auto footer=gcnew Label();footer->Text=L"v3 \u52a0\u5bc6\u4f20\u8f93 | \u5fc3\u8df3\u95f4\u9694 5 \u79d2";footer->Location=Point(40,350);footer->AutoSize=true;Controls->Add(footer); Load+=gcnew EventHandler(this,&MainForm::Bootstrap); Load+=gcnew EventHandler(this,&MainForm::LoadCloudConfig);
+    HeartbeatForm() {
+        Text = L"心跳验证详情";
+        Width = 500; Height = 300;
+        StartPosition = FormStartPosition::CenterParent;
+        state = gcnew Label();
+        state->Dock = DockStyle::Fill;
+        state->Padding = System::Windows::Forms::Padding(28);
+        state->Font = gcnew System::Drawing::Font(L"Microsoft YaHei UI", 11);
+        state->Text = L"状态：在线\r\n心跳间隔：5 秒\r\n传输协议：v3 LK3/LR3";
+        Controls->Add(state);
+        running = true;
+        worker = gcnew Thread(gcnew ThreadStart(this, &HeartbeatForm::HeartbeatLoop));
+        worker->IsBackground = true;
+        worker->Start();
+    }
+protected:
+    virtual void OnFormClosing(FormClosingEventArgs^ e) override {
+        running = false;
+        auto auth = session.get();
+        if (auth.authenticated) {
+            try { secure_post("logout", auth.license_key); } catch (...) {}
+        }
+        session.clear();
+        Form::OnFormClosing(e);
     }
 private:
-    // 云函数调用：仅发送函数名和参数，整个请求由 secure_execute 使用 LK3 加密。
-    void LoadCloudConfig(Object^,EventArgs^){try{Response r=secure_execute("get_config","{}");if(r.status==200){notice->Text+=L"\r\n\r\n\u4e91\u914d\u7f6e\uff1a"+ToManaged(r.body);}else notice->Text+=L"\r\n\r\n\u4e91\u914d\u7f6e\u8bf7\u6c42\u5931\u8d25";}catch(...){notice->Text+=L"\r\n\r\n\u4e91\u914d\u7f6e\u8fde\u63a5\u5931\u8d25";}}
-    // 启动握手：产品不存在或服务端异常时，明确显示错误并禁止登录。
-    void Bootstrap(Object^,EventArgs^){try{Response r=secure_bootstrap();if(r.status!=200){notice->Text=L"\u4ea7\u54c1\u63e1\u624b\u5931\u8d25\uff1a"+ToManaged(r.body);login->Enabled=false;return;}auto a=json_value(r.body,"content"),v=json_value(r.body,"version");notice->Text=a.empty()?L"\u5f53\u524d\u6ca1\u6709\u516c\u544a":ToManaged(a);version->Text=L"\u6700\u65b0\u7248\u672c\uff1a"+ToManaged(v)+L"    \u672c\u5730\u7248\u672c\uff1a3.0.0";}catch(...){notice->Text=L"\u4ea7\u54c1\u914d\u7f6e\u8bfb\u53d6\u5931\u8d25\uff1a\u65e0\u6cd5\u8fde\u63a5\u670d\u52a1\u5668";login->Enabled=false;}}
-    static String^ ToManaged(const std::string& s){std::wstring w;for(size_t i=0;i<s.size();){if(i+5<s.size()&&s[i]=='\\'&&s[i+1]=='u'){unsigned v=0;for(int j=0;j<4;j++){char c=s[i+2+j];v=v*16+(c>='0'&&c<='9'?c-'0':c>='a'&&c<='f'?c-'a'+10:c-'A'+10);}w.push_back((wchar_t)v);i+=6;}else{size_t n=1;while(i+n<s.size()&&s[i+n]!='\\')n++;w+=utf8_to_wide(s.substr(i,n));i+=n;}}return gcnew String(w.c_str());}
-    // 登录：使用 v3 activate，成功后显示服务器返回的到期时间。
-    void Login(Object^,EventArgs^){if(String::IsNullOrWhiteSpace(key->Text)){MessageBox::Show(L"\u8bf7\u8f93\u5165\u5361\u5bc6",L"\u63d0\u793a");return;}try{Response r=secure_post("activate",wide_to_utf8(key->Text));if(r.status!=200){MessageBox::Show(ToManaged(r.body),L"\u767b\u5f55\u5931\u8d25");return;}auto exp=json_value(r.body,"expires_at");MessageBox::Show(L"\u767b\u5f55\u6210\u529f\n\u5230\u671f\u65f6\u95f4\uff1a"+(exp.empty()?L"\u6c38\u4e45":ToManaged(exp)),L"\u767b\u5f55\u6210\u529f",MessageBoxButtons::OK,MessageBoxIcon::Information);heartbeat=gcnew HeartbeatForm();heartbeat->Show(this);}catch(Exception^ ex){MessageBox::Show(ex->Message,L"\u7f51\u7edc\u9519\u8bef");}}
+    Label^ state;
+    Thread^ worker;
+    volatile bool running;
+
+    void HeartbeatLoop() {
+        int networkFailures = 0;
+        while (running) {
+            Thread::Sleep(5000);
+            if (!running) break;
+            auto auth = session.get();
+            if (!auth.authenticated) break;
+            try {
+                Response response = secure_post("heartbeat", auth.license_key);
+                if (response.status == 200) {
+                    networkFailures = 0;
+                    BeginInvoke(gcnew Action<String^>(this, &HeartbeatForm::ShowOnline),
+                        L"状态：在线\r\n最近心跳：" + DateTime::Now.ToString(L"yyyy-MM-dd HH:mm:ss") +
+                        L"\r\n到期时间：" + (auth.expires_at.empty() ? L"永久" : to_managed(auth.expires_at)));
+                    continue;
+                }
+                BeginInvoke(gcnew Action<String^>(this, &HeartbeatForm::ForceOffline), error_message(response.body));
+                break;
+            } catch (...) {
+                if (++networkFailures >= 3) {
+                    BeginInvoke(gcnew Action<String^>(this, &HeartbeatForm::ForceOffline), L"网络连续异常，授权会话已下线");
+                    break;
+                }
+            }
+        }
+    }
+    void ShowOnline(String^ text) { state->Text = text; }
+    void ForceOffline(String^ reason) {
+        running = false;
+        session.clear();
+        state->Text = L"状态：离线\r\n原因：" + reason;
+        MessageBox::Show(reason, L"授权已失效", MessageBoxButtons::OK, MessageBoxIcon::Warning);
+    }
 };
-[STAThread]int main(array<String^>^){Application::EnableVisualStyles();Application::SetCompatibleTextRenderingDefault(false);Application::Run(gcnew MainForm());return 0;}
+
+public ref class MainForm : public Form {
+public:
+    MainForm() {
+        Text = L"卡密验证 SDK v3";
+        Width = 580; Height = 440;
+        StartPosition = FormStartPosition::CenterScreen;
+        BackColor = Color::FromArgb(247, 249, 252);
+        auto title = gcnew Label(); title->Text = L"产品授权"; title->Font = gcnew System::Drawing::Font(L"Microsoft YaHei UI", 20, FontStyle::Bold); title->Location = System::Drawing::Point(36, 25); title->AutoSize = true; Controls->Add(title);
+        version = gcnew Label(); version->Location = Point(40, 73); version->AutoSize = true; version->Text = L"正在读取版本信息..."; Controls->Add(version);
+        notice = gcnew Label(); notice->Location = Point(40, 108); notice->Size = Drawing::Size(485, 78); notice->BorderStyle = BorderStyle::FixedSingle; notice->Padding = System::Windows::Forms::Padding(12); notice->Text = L"正在读取产品公告..."; Controls->Add(notice);
+        auto keyLabel = gcnew Label(); keyLabel->Text = L"卡密"; keyLabel->Location = System::Drawing::Point(40, 207); keyLabel->AutoSize = true; Controls->Add(keyLabel);
+        key = gcnew TextBox(); key->Location = Point(40, 232); key->Width = 485; Controls->Add(key);
+        login = gcnew Button(); login->Text = L"登录验证"; login->Location = Point(40, 282); login->Size = Drawing::Size(485, 43); login->BackColor = Color::FromArgb(35, 99, 235); login->ForeColor = Color::White; login->Click += gcnew EventHandler(this, &MainForm::Login); Controls->Add(login);
+        auto footer = gcnew Label(); footer->Text = L"v3 加密传输 | 独立心跳线程 | 5 秒间隔"; footer->Location = Point(40, 350); footer->AutoSize = true; Controls->Add(footer);
+        Load += gcnew EventHandler(this, &MainForm::Bootstrap);
+    }
+private:
+    TextBox^ key; Label^ notice; Label^ version; Button^ login; HeartbeatForm^ heartbeat;
+    void Bootstrap(Object^, EventArgs^) {
+        try {
+            Response response = secure_bootstrap();
+            if (response.status != 200) { notice->Text = error_message(response.body); login->Enabled = false; return; }
+            auto content = json_value(response.body, "content"); auto latest = json_value(response.body, "version");
+            notice->Text = content.empty() ? L"当前没有公告" : to_managed(content);
+            version->Text = L"最新版本：" + to_managed(latest) + L"    本地版本：" + to_managed(CLIENT_VERSION);
+        } catch (...) { notice->Text = L"产品配置读取失败：服务器连接异常"; login->Enabled = false; }
+    }
+    void Login(Object^, EventArgs^) {
+        if (String::IsNullOrWhiteSpace(key->Text)) { MessageBox::Show(L"请输入卡密", L"提示"); return; }
+        try {
+            std::string license = to_utf8(key->Text->Trim());
+            Response response = secure_post("activate", license);
+            if (response.status != 200) { MessageBox::Show(error_message(response.body), L"登录失败"); return; }
+            std::string expires = json_value(response.body, "expires_at");
+            session.set({license, PRODUCT_CODE, PRODUCT_NAME, device_code(), expires, true});
+            Response cloud = secure_execute(session.get(), "get_security_parameters", "{}");
+            String^ cloudState = cloud.status == 200 ? L"云配置读取成功" : L"云配置读取失败：" + error_message(cloud.body);
+            MessageBox::Show(L"登录成功\r\n到期时间：" + (expires.empty() ? L"永久" : to_managed(expires)) + L"\r\n" + cloudState, L"登录成功", MessageBoxButtons::OK, MessageBoxIcon::Information);
+            heartbeat = gcnew HeartbeatForm(); heartbeat->Show(this);
+        } catch (Exception^ ex) { MessageBox::Show(ex->Message, L"网络错误"); }
+    }
+};
+
+[STAThread]
+int main(array<String^>^) {
+    Application::EnableVisualStyles();
+    Application::SetCompatibleTextRenderingDefault(false);
+    Application::Run(gcnew MainForm());
+    return 0;
+}
