@@ -43,11 +43,17 @@ let adminCsrfPromise;
   style.textContent = `
     :root{--glass-bg:rgba(255,255,255,.74);--glass-line:rgba(255,255,255,.78);--ink:#17212b;--muted:#667483;--accent:#087f75;--accent-2:#4ab7a8}
     body{background:linear-gradient(135deg,#eef4f2 0%,#e7edf3 48%,#f7f4ee 100%);color:var(--ink);font-family:"Microsoft YaHei UI","Segoe UI",sans-serif}
-    .layui-layout-admin .layui-header{background:linear-gradient(100deg,#143a42,#17645f 52%,#2a6f69);box-shadow:0 8px 24px rgba(20,57,66,.18)}
-    .layui-logo{font-weight:700;letter-spacing:.02em;color:#fff!important}
-    .layui-side{background:rgba(20,44,51,.94)!important;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
-    .layui-nav-tree .layui-nav-item>a{margin:5px 10px;border-radius:10px;transition:background .2s ease,transform .2s ease}
-    .layui-nav-tree .layui-nav-item>a:hover,.layui-nav-tree .layui-this>a{background:rgba(104,214,197,.18)!important;transform:translateX(2px)}
+    .layui-layout-admin .layui-header{background:rgba(245,251,252,.64)!important;border-bottom:1px solid rgba(255,255,255,.84);box-shadow:0 8px 30px rgba(27,67,86,.09);backdrop-filter:blur(24px) saturate(145%);-webkit-backdrop-filter:blur(24px) saturate(145%)}
+    .layui-logo{font-weight:700;letter-spacing:.02em;color:#163a4b!important}
+    .layui-layout-admin .layui-side{top:76px!important;bottom:12px!important;left:12px!important;width:196px!important;border:1px solid rgba(255,255,255,.8);border-radius:20px;background:linear-gradient(145deg,rgba(255,255,255,.66),rgba(218,237,241,.46))!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.9),inset 0 -1px 0 rgba(255,255,255,.3),0 20px 48px rgba(24,68,86,.13);backdrop-filter:blur(28px) saturate(150%);-webkit-backdrop-filter:blur(28px) saturate(150%);overflow:hidden}
+    .layui-layout-admin .layui-side-scroll{width:196px!important;background:transparent!important;padding-top:12px}
+    .layui-layout-admin .layui-nav-tree{background:transparent!important}
+    .layui-nav-tree .layui-nav-item>a{height:46px;line-height:46px;margin:6px 10px;padding:0 15px;border:1px solid transparent;border-radius:12px;color:#486270!important;font-weight:550;transition:background .2s ease,color .2s ease,transform .2s ease,box-shadow .2s ease}
+    .layui-nav-tree .layui-nav-item>a .layui-icon{color:#6d8792;transition:color .2s ease}
+    .layui-nav-tree .layui-nav-item>a:hover{background:rgba(255,255,255,.56)!important;border-color:rgba(255,255,255,.74);color:#173e4e!important;transform:translateX(2px)}
+    .layui-nav-tree .layui-this>a,.layui-nav-tree .layui-this>a:hover{background:linear-gradient(115deg,rgba(25,155,180,.88),rgba(54,183,172,.75))!important;border-color:rgba(255,255,255,.46);color:#fff!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.42),0 10px 24px rgba(24,139,158,.24);transform:none}
+    .layui-nav-tree .layui-this>a .layui-icon{color:#fff}
+    .layui-layout-admin .layui-body{left:220px!important}
     .layui-body{background:transparent!important}
     .layui-card{background:var(--glass-bg);border:1px solid var(--glass-line);border-radius:14px;box-shadow:0 14px 35px rgba(38,61,70,.09);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);overflow:hidden}
     .layui-card-header{border-bottom:1px solid rgba(28,58,66,.08);font-weight:650;color:#19343a}
@@ -60,6 +66,7 @@ let adminCsrfPromise;
     .layui-input,.layui-select,.layui-textarea{background:rgba(255,255,255,.68);border-color:rgba(37,87,87,.18);border-radius:9px;color:var(--ink)}
     .layui-input:focus,.layui-textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(74,183,168,.16)!important}
     .metric{background:linear-gradient(135deg,rgba(255,255,255,.72),rgba(228,243,239,.62));}
+    @media (max-width:700px){.layui-layout-admin .layui-side{left:8px!important;top:72px!important;width:56px!important}.layui-layout-admin .layui-side-scroll{width:56px!important}.layui-layout-admin .layui-body{left:68px!important}.layui-nav-tree .layui-nav-item>a{width:40px;height:40px;line-height:40px;margin:7px;padding:0;text-align:center;font-size:0}.layui-nav-tree .layui-nav-item>a .layui-icon{margin:0;font-size:18px}}
     @media (prefers-reduced-transparency:reduce){.layui-card,.layui-input,.layui-textarea{backdrop-filter:none;background:#fff}}
   `;
   document.head.appendChild(style);
