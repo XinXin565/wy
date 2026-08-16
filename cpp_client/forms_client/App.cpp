@@ -30,7 +30,11 @@ static String^ error_message(const std::string& body) {
     if (body.find("device_limit_reached") != std::string::npos) return L"设备数量已达上限";
     if (body.find("product_name_mismatch") != std::string::npos) return L"客户端产品名称不匹配";
     if (body.find("invalid_license") != std::string::npos) return L"卡密错误";
-    return L"验证失败：" + to_managed(body);
+    if (body.find("script_not_enabled") != std::string::npos) return L"云函数尚未启用";
+    if (body.find("script_execution_failed") != std::string::npos) return L"云函数执行失败";
+    if (body.find("product_not_found") != std::string::npos) return L"产品不存在或已停用";
+    if (body.find("network") != std::string::npos || body.find("connect") != std::string::npos) return L"网络连接失败";
+    return L"验证失败，请稍后重试";
 }
 
 // v3 云函数传输：卡密、设备和产品信息均位于 LK3 加密载荷中。
