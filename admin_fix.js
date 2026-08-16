@@ -29,6 +29,7 @@ window.adminApiRequest = async function adminApiRequest(url, options = {}) {
 })();
 
 (() => { setInterval(() => { ['cfgAnnEnabled','cfgForceRead','cfgForceUpdate'].forEach(id=>{const n=document.getElementById(id);if(n){n.style.display='inline-block';n.style.width='18px';n.style.height='18px';n.style.opacity='1';}}); }, 300); })();
+(() => { setInterval(() => { const n=document.getElementById('cfgAnnTitle'); if(n){n.value=''; n.closest('.layui-form-item')?.remove();} }, 300); })();
 
 (() => {
   const nativeFetch = window.fetch.bind(window); let tokenPromise;
