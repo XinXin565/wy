@@ -29,6 +29,7 @@ let adminCsrfPromise;
     .layui-btn:active{transform:translateY(0) scale(.98);}
     .metric{background:linear-gradient(135deg,rgba(255,255,255,.82),rgba(224,241,245,.62));}
     @keyframes glassPageIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+    @media (max-width:700px){.layui-layout-admin .layui-side{width:68px}.layui-layout-admin .layui-body{left:68px}.layui-side-scroll{width:68px}.layui-layout-admin .layui-logo{width:68px;font-size:0}.layui-layout-admin .layui-logo:after{content:'授权';font-size:16px}.layui-nav-tree .layui-nav-item>a{margin:5px 7px;padding-left:0;text-align:center}.layui-nav-tree .layui-nav-item>a .layui-icon{margin:0;font-size:18px}.layui-nav-tree .layui-nav-item>a{font-size:0}.layui-nav-tree .layui-nav-item>a .layui-icon{font-size:18px}.page{padding:14px}.layui-col-md3,.layui-col-md6{width:100%}.toolbar{flex-wrap:wrap}.toolbar .layui-input,.toolbar .layui-select{width:100%!important}.layui-table{display:block;overflow-x:auto;white-space:nowrap}.layui-layout-admin .layui-header .layui-nav-right{right:4px}.layui-layout-admin .layui-header .layui-nav-right .layui-nav-item>a{padding:0 8px;font-size:12px}}
     @media (prefers-reduced-transparency:reduce){.layui-card,.layui-layer,.layui-layout-admin .layui-header{background:#fff;backdrop-filter:none;-webkit-backdrop-filter:none;}}
     @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;}}
   `;
