@@ -3,7 +3,7 @@ import vm from 'node:vm';
 
 const input = JSON.parse(fs.readFileSync(0, 'utf8'));
 if (!input.script || !input.function) throw new Error('invalid_script_request');
-const allowed = new Set(['get_config', 'get_notice', 'get_security_parameters']);
+const allowed = new Set(['get_config', 'get_notice', 'get_security_parameters', 'cs']);
 if (!allowed.has(input.function)) throw new Error('function_not_allowed');
 const sandbox = Object.freeze({ console: Object.freeze({ log() {} }) });
 const context = vm.createContext({ ...sandbox, __args: input.args || {} });
