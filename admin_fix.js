@@ -71,7 +71,15 @@ let adminCsrfPromise;
     .layui-input,.layui-select,.layui-textarea{background:rgba(255,255,255,.68);border-color:rgba(37,87,87,.18);border-radius:9px;color:var(--ink)}
     .layui-input:focus,.layui-textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(74,183,168,.16)!important}
     .metric{background:linear-gradient(135deg,rgba(255,255,255,.72),rgba(228,243,239,.62));}
-    @media (max-width:700px){.layui-layout-admin .layui-side{left:8px!important;top:72px!important;width:56px!important}.layui-layout-admin .layui-side-scroll{width:56px!important}.layui-layout-admin .layui-body{left:68px!important}.layui-nav-tree .layui-nav-item>a{width:40px;height:40px;line-height:40px;margin:7px;padding:0;text-align:center;font-size:0}.layui-nav-tree .layui-nav-item>a .layui-icon{margin:0;font-size:18px}}
+    .p2-page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin:2px 0 18px;padding:4px 2px}.p2-page-head h1{margin:0;color:#183846;font-size:23px;line-height:1.2;font-weight:720}.p2-page-head p{margin:7px 0 0;color:#758991;font-size:13px}.p2-page-kicker{display:block;margin-bottom:6px;color:#1596b5;font-size:11px;font-weight:700;letter-spacing:.14em}.p2-page-action{display:flex;align-items:center;gap:8px}
+    .p2-filter-shell{position:relative;margin-bottom:14px;padding:14px;border:1px solid rgba(255,255,255,.7);border-radius:14px;background:rgba(238,247,249,.46);box-shadow:inset 0 1px 0 rgba(255,255,255,.72)}
+    .p2-filter-shell:before{content:'筛选条件';display:block;margin-bottom:10px;color:#71858e;font-size:11px;font-weight:650;letter-spacing:.08em}
+    .p2-table-shell{overflow:hidden;border:1px solid rgba(52,96,112,.08);border-radius:14px;background:rgba(255,255,255,.45)}
+    .p2-table-shell .layui-table{margin:0;border-radius:0}.p2-table-shell thead th{height:44px}.p2-table-shell tbody td{height:42px}
+    .p2-metrics .metric{min-height:116px;padding:20px 22px;border-color:rgba(255,255,255,.84)}.p2-metrics .metric b{color:#163646;font-size:32px}.p2-metrics .metric .muted{font-size:12px;letter-spacing:.04em}
+    .p2-section{margin-top:16px}.p2-section>.layui-card-header{height:50px;line-height:50px;padding:0 18px}
+    .p2-page-head+.layui-card,.p2-page-head+.layui-row{margin-top:0}
+    @media (max-width:700px){.layui-layout-admin .layui-side{left:8px!important;top:72px!important;width:56px!important}.layui-layout-admin .layui-side-scroll{width:56px!important}.layui-layout-admin .layui-body{left:68px!important}.layui-nav-tree .layui-nav-item>a{width:40px;height:40px;line-height:40px;margin:7px;padding:0;text-align:center;font-size:0}.layui-nav-tree .layui-nav-item>a .layui-icon{margin:0;font-size:18px}.p2-page-head{align-items:flex-start;flex-direction:column}.p2-page-head h1{font-size:20px}.p2-page-action{width:100%;flex-wrap:wrap}.p2-filter-shell{padding:10px}}
     @media (prefers-reduced-transparency:reduce){.layui-card,.layui-input,.layui-textarea{backdrop-filter:none;background:#fff}}
   `;
   document.head.appendChild(style);
@@ -598,4 +606,22 @@ window.adminApiRequest = async function adminApiRequest(url, options = {}) {
       const load=async()=>{const q=new URLSearchParams({product_code:document.querySelector('#scriptAuditProduct').value,function:document.querySelector('#scriptAuditFn').value,result:document.querySelector('#scriptAuditResult').value});const j=await adminApiRequest('/admin/script-audit?'+q.toString(),{cache:'no-store'});document.querySelector('#scriptAuditRows').innerHTML=(j.logs||[]).map(x=>'<tr><td>'+esc(x.product_code)+'</td><td>'+esc(x.function_name)+'</td><td>'+esc(x.script_version)+'</td><td>'+esc(x.result)+'</td><td>'+esc(x.reason||'-')+'</td><td>'+esc(x.duration_ms)+' ms</td><td>'+esc(x.ip_address||'-')+'</td><td>'+esc(fmt(x.created_at))+'</td></tr>').join('')||'<tr><td colspan="8">暂无记录</td></tr>';};document.querySelector('#loadScriptAudit').onclick=load;load();
     }
   };setInterval(boot,500);boot();
+})();
+// P2 页面结构层：统一页面标题、筛选区、数据区和业务分组。
+(() => {
+  const pageMeta={
+    overview:['运营总览','实时掌握授权、设备和风险事件','数据中心'],
+    licenses:['卡密管理','筛选、生成和维护产品授权','授权资产'],
+    products:['产品管理','维护产品、版本、公告和云函数','产品中心'],
+    devices:['设备管理','查看设备绑定和实时在线情况','设备中心'],
+    logs:['审计日志','追踪后台、客户端和云函数事件','风险审计']
+  };
+  const decorate=()=>{
+    Object.entries(pageMeta).forEach(([id,[title,desc,kicker]])=>{const page=document.getElementById(id);if(!page||page.querySelector(':scope > .p2-page-head'))return;const head=document.createElement('div');head.className='p2-page-head';head.innerHTML='<div><span class="p2-page-kicker">'+kicker+'</span><h1>'+title+'</h1><p>'+desc+'</p></div><div class="p2-page-action" id="'+id+'PageActions"></div>';page.prepend(head);});
+    document.querySelector('#metrics')?.classList.add('p2-metrics');
+    document.querySelectorAll('#overview > .layui-row:not(#metrics) .layui-card').forEach(x=>x.classList.add('p2-section'));
+    ['licenses','devices','logs','products'].forEach(id=>{const page=document.getElementById(id);if(!page)return;const toolbar=page.querySelector('.toolbar');if(toolbar)toolbar.classList.add('p2-filter-shell');const table=page.querySelector('table');if(table&&table.parentElement&&!table.parentElement.classList.contains('p2-table-shell'))table.parentElement.classList.add('p2-table-shell');});
+    const licAction=document.querySelector('#licenses .layui-card-header .layui-btn');const licTarget=document.querySelector('#licensesPageActions');if(licAction&&licTarget&&!licTarget.contains(licAction)){licTarget.appendChild(licAction);licAction.style.cssText='';}
+  };
+  setInterval(decorate,700);decorate();
 })();
