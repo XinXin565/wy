@@ -143,13 +143,14 @@ public:
         Text = L"卡密验证 SDK v3";
         Width = 580; Height = 440;
         StartPosition = FormStartPosition::CenterScreen;
-        BackColor = Color::FromArgb(247, 249, 252);
-        auto title = gcnew Label(); title->Text = L"产品授权"; title->Font = gcnew System::Drawing::Font(L"Microsoft YaHei UI", 20, FontStyle::Bold); title->Location = System::Drawing::Point(36, 25); title->AutoSize = true; Controls->Add(title);
+        BackColor = Color::FromArgb(236, 242, 241);
+        FormBorderStyle = System::Windows::Forms::FormBorderStyle::FixedSingle;
+        auto title = gcnew Label(); title->Text = L"产品授权"; title->Font = gcnew System::Drawing::Font(L"Microsoft YaHei UI", 20, FontStyle::Bold); title->ForeColor = Color::FromArgb(20, 66, 69); title->Location = System::Drawing::Point(36, 25); title->AutoSize = true; Controls->Add(title);
         version = gcnew Label(); version->Location = Point(40, 73); version->AutoSize = true; version->Text = L"正在读取版本信息..."; Controls->Add(version);
-        notice = gcnew Label(); notice->Location = Point(40, 108); notice->Size = Drawing::Size(485, 78); notice->BorderStyle = BorderStyle::FixedSingle; notice->Padding = System::Windows::Forms::Padding(12); notice->Text = L"正在读取产品公告..."; Controls->Add(notice);
+        notice = gcnew Label(); notice->Location = Point(40, 108); notice->Size = Drawing::Size(485, 78); notice->BorderStyle = BorderStyle::FixedSingle; notice->BackColor = Color::FromArgb(220, 245, 239); notice->ForeColor = Color::FromArgb(37, 71, 72); notice->Padding = System::Windows::Forms::Padding(12); notice->Text = L"正在读取产品公告..."; Controls->Add(notice);
         auto keyLabel = gcnew Label(); keyLabel->Text = L"卡密"; keyLabel->Location = System::Drawing::Point(40, 207); keyLabel->AutoSize = true; Controls->Add(keyLabel);
-        key = gcnew TextBox(); key->Location = Point(40, 232); key->Width = 485; Controls->Add(key);
-        login = gcnew Button(); login->Text = L"登录验证"; login->Location = Point(40, 282); login->Size = Drawing::Size(485, 43); login->BackColor = Color::FromArgb(35, 99, 235); login->ForeColor = Color::White; login->Click += gcnew EventHandler(this, &MainForm::Login); Controls->Add(login);
+        key = gcnew TextBox(); key->Location = Point(40, 232); key->Width = 485; key->Height = 30; key->Font = gcnew System::Drawing::Font(L"Microsoft YaHei UI", 10); key->BackColor = Color::White; Controls->Add(key);
+        login = gcnew Button(); login->Text = L"登录验证"; login->Location = Point(40, 282); login->Size = Drawing::Size(485, 43); login->BackColor = Color::FromArgb(16, 125, 113); login->FlatStyle = FlatStyle::Flat; login->FlatAppearance->BorderSize = 0; login->ForeColor = Color::White; login->Click += gcnew EventHandler(this, &MainForm::Login); Controls->Add(login);
         auto footer = gcnew Label(); footer->Text = L"v3 加密传输 | 独立心跳线程 | 5 秒间隔"; footer->Location = Point(40, 350); footer->AutoSize = true; Controls->Add(footer);
         Load += gcnew EventHandler(this, &MainForm::Bootstrap);
     }

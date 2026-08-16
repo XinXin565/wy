@@ -1,4 +1,68 @@
 let adminCsrfPromise;
+// 企业级玻璃主题：只增强材质和状态反馈，不改变现有业务结构。
+(() => {
+  if (document.getElementById('glassTheme')) return;
+  const style = document.createElement('style');
+  style.id = 'glassTheme';
+  style.textContent = `
+    :root{--glass-bg:rgba(255,255,255,.72);--glass-line:rgba(255,255,255,.58);--glass-shadow:0 18px 55px rgba(15,35,65,.10);--accent:#1596b5;--ink:#1f3045;}
+    body{background:linear-gradient(135deg,#edf4f7 0%,#e6eef5 48%,#f5f7f8 100%);color:var(--ink);}
+    .layui-layout-admin .layui-header{height:64px;line-height:64px;background:rgba(255,255,255,.68);border-bottom:1px solid rgba(255,255,255,.72);box-shadow:0 8px 30px rgba(25,53,78,.08);backdrop-filter:blur(20px) saturate(135%);-webkit-backdrop-filter:blur(20px) saturate(135%);}
+    .layui-layout-admin .layui-logo{height:64px;line-height:64px;color:#17344a;font-weight:700;letter-spacing:.02em;}
+    .layui-layout-admin .layui-side{top:64px;background:rgba(24,48,68,.94)!important;box-shadow:10px 0 35px rgba(22,48,68,.18);}
+    .layui-nav-tree .layui-nav-item>a{margin:5px 12px;border-radius:10px;transition:background .18s ease,transform .18s ease;}
+    .layui-nav-tree .layui-nav-item>a:hover{background:rgba(255,255,255,.12);transform:translateX(2px);}
+    .layui-nav-tree .layui-this>a,.layui-nav-tree .layui-this>a:hover{background:linear-gradient(105deg,rgba(21,150,181,.92),rgba(53,177,180,.74));box-shadow:0 8px 22px rgba(21,150,181,.22);}
+    .layui-layout-admin .layui-body{top:64px;background:transparent;}
+    .page{animation:glassPageIn .2s ease both;}
+    .layui-card,.layui-layer{background:var(--glass-bg);border:1px solid var(--glass-line);border-radius:14px;box-shadow:var(--glass-shadow);backdrop-filter:blur(18px) saturate(130%);-webkit-backdrop-filter:blur(18px) saturate(130%);}
+    .layui-card-header{border-bottom:1px solid rgba(34,70,92,.09);font-weight:600;color:#203b52;}
+    .layui-table{background:rgba(255,255,255,.38);border-radius:10px;overflow:hidden;}
+    .layui-table th{background:rgba(227,239,244,.72);color:#385268;font-weight:600;}
+    .layui-table td{border-color:rgba(47,88,110,.08);}
+    .layui-table tbody tr{transition:background .16s ease,transform .16s ease;}
+    .layui-table tbody tr:hover{background:rgba(125,205,215,.12);}
+    .layui-input,.layui-select,.layui-textarea{background:rgba(255,255,255,.7);border-color:rgba(69,112,132,.2);border-radius:8px;transition:border-color .16s ease,box-shadow .16s ease;}
+    .layui-input:focus,.layui-select:focus,.layui-textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(21,150,181,.13);}
+    .layui-btn{border-radius:8px;transition:transform .16s ease,box-shadow .16s ease,filter .16s ease;}
+    .layui-btn:hover{transform:translateY(-1px);filter:saturate(1.06);box-shadow:0 7px 18px rgba(30,91,110,.14);}
+    .layui-btn:active{transform:translateY(0) scale(.98);}
+    .metric{background:linear-gradient(135deg,rgba(255,255,255,.82),rgba(224,241,245,.62));}
+    @keyframes glassPageIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+    @media (prefers-reduced-transparency:reduce){.layui-card,.layui-layer,.layui-layout-admin .layui-header{background:#fff;backdrop-filter:none;-webkit-backdrop-filter:none;}}
+    @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;}}
+  `;
+  document.head.appendChild(style);
+})();
+// 液态玻璃近似材质：使用 backdrop-filter，并为不支持透明度的浏览器提供实色回退。
+(() => {
+  if (document.querySelector('#liquidGlassTheme')) return;
+  const style = document.createElement('style');
+  style.id = 'liquidGlassTheme';
+  style.textContent = `
+    :root{--glass-bg:rgba(255,255,255,.74);--glass-line:rgba(255,255,255,.78);--ink:#17212b;--muted:#667483;--accent:#087f75;--accent-2:#4ab7a8}
+    body{background:linear-gradient(135deg,#eef4f2 0%,#e7edf3 48%,#f7f4ee 100%);color:var(--ink);font-family:"Microsoft YaHei UI","Segoe UI",sans-serif}
+    .layui-layout-admin .layui-header{background:linear-gradient(100deg,#143a42,#17645f 52%,#2a6f69);box-shadow:0 8px 24px rgba(20,57,66,.18)}
+    .layui-logo{font-weight:700;letter-spacing:.02em;color:#fff!important}
+    .layui-side{background:rgba(20,44,51,.94)!important;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+    .layui-nav-tree .layui-nav-item>a{margin:5px 10px;border-radius:10px;transition:background .2s ease,transform .2s ease}
+    .layui-nav-tree .layui-nav-item>a:hover,.layui-nav-tree .layui-this>a{background:rgba(104,214,197,.18)!important;transform:translateX(2px)}
+    .layui-body{background:transparent!important}
+    .layui-card{background:var(--glass-bg);border:1px solid var(--glass-line);border-radius:14px;box-shadow:0 14px 35px rgba(38,61,70,.09);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);overflow:hidden}
+    .layui-card-header{border-bottom:1px solid rgba(28,58,66,.08);font-weight:650;color:#19343a}
+    .layui-table{background:rgba(255,255,255,.45);border-color:rgba(35,74,80,.1)}
+    .layui-table th{background:rgba(225,239,236,.7);color:#244a4c;font-weight:650}
+    .layui-table td{border-color:rgba(35,74,80,.08)}
+    .layui-btn{border-radius:9px;transition:transform .18s ease,box-shadow .18s ease,background .18s ease}
+    .layui-btn:hover{transform:translateY(-1px);box-shadow:0 8px 16px rgba(20,95,88,.15)}
+    .layui-btn-normal{background:linear-gradient(135deg,var(--accent),var(--accent-2))}
+    .layui-input,.layui-select,.layui-textarea{background:rgba(255,255,255,.68);border-color:rgba(37,87,87,.18);border-radius:9px;color:var(--ink)}
+    .layui-input:focus,.layui-textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(74,183,168,.16)!important}
+    .metric{background:linear-gradient(135deg,rgba(255,255,255,.72),rgba(228,243,239,.62));}
+    @media (prefers-reduced-transparency:reduce){.layui-card,.layui-input,.layui-textarea{backdrop-filter:none;background:#fff}}
+  `;
+  document.head.appendChild(style);
+})();
 // Render a compact audit trend chart from the report API.
 (() => { const draw=async()=>{const root=document.querySelector('#overview');if(!root?.classList.contains('active')||document.querySelector('#auditTrendChart'))return;try{const j=await fetch('/admin/api/reports',{credentials:'same-origin'}).then(r=>r.json());const rows=j.audit_trend||[];const max=Math.max(1,...rows.map(x=>Number(x.total)||0));const card=document.createElement('div');card.id='auditTrendChart';card.className='layui-card';card.style.marginTop='16px';card.innerHTML='<div class="layui-card-header">近 14 日审计趋势</div><div class="layui-card-body"><div style="display:flex;align-items:flex-end;gap:6px;height:100px">'+rows.map(x=>`<div title="${String(x.day||'')}：${x.total}" style="flex:1;background:#1e9fff;height:${Math.max(4,Math.round((Number(x.total)||0)/max*90))}px"></div>`).join('')+'</div></div>';root.appendChild(card);}catch(_){}};setInterval(()=>{document.querySelector('#auditTrendChart')?.remove();draw();},5000);setTimeout(draw,800);})();
 window.adminApiRequest = async function adminApiRequest(url, options = {}) {
