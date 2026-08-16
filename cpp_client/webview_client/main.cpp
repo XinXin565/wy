@@ -85,6 +85,19 @@ std::wstring JsonWideValue(const std::string& body, const std::string& key) {
     return out;
 }
 
+// 云函数 result 既可能是数字，也可能是字符串；示例 cs 返回数字 10。
+std::wstring JsonResultValue(const std::string& body) {
+    const std::string marker = "\"result\":";
+    size_t begin = body.find(marker);
+    if (begin == std::string::npos) return L"";
+    begin += marker.size();
+    while (begin < body.size() && (body[begin] == ' ' || body[begin] == '\t')) ++begin;
+    if (begin < body.size() && body[begin] == '"') return JsonWideValue(body, "result");
+    size_t end = begin;
+    while (end < body.size() && body[end] != ',' && body[end] != '}') ++end;
+    return utf8_to_wide(body.substr(begin, end - begin));
+}
+
 std::wstring CloudErrorText(const std::string& body) {
     if (body.find("script_not_enabled") != std::string::npos) return L"云函数尚未启用";
     if (body.find("script_execution_failed") != std::string::npos) return L"云函数执行失败";
@@ -197,10 +210,11 @@ void HandleLogin(const std::wstring& message) {
         SendJson(L"{\"type\":\"login\",\"ok\":true,\"expires\":\"" + JsonEscape(expires) + L"\",\"device\":\"" + JsonEscape(device) + L"\"}");
         StartHeartbeat();
         try {
-            Response cloud = SecureExecute(g_license,"get_security_parameters");
+            Response cloud = SecureExecute(g_license,"cs");
             if (cloud.status == 200) {
+                auto result = JsonResultValue(cloud.body);
                 auto version = JsonWideValue(cloud.body,"script_version");
-                SendJson(L"{\"type\":\"cloud\",\"ok\":true,\"message\":\"安全参数读取成功 · 脚本版本 " + JsonEscape(version) + L"\"}");
+                SendJson(L"{\"type\":\"cloud\",\"ok\":true,\"message\":\"cs 返回值：" + JsonEscape(result.empty() ? L"未返回结果" : result) + L" · 脚本版本 " + JsonEscape(version) + L"\"}");
             } else {
                 SendJson(L"{\"type\":\"cloud\",\"ok\":false,\"message\":\"" + JsonEscape(CloudErrorText(cloud.body)) + L"\"}");
             }
