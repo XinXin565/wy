@@ -191,9 +191,11 @@ if [[ -d /etc/nginx/sites-enabled ]]; then
   rm -f /etc/nginx/sites-enabled/default
 fi
 
-systemctl enable --now "$FPM_SERVICE"
+systemctl enable "$FPM_SERVICE"
+systemctl restart "$FPM_SERVICE"
 nginx -t
-systemctl enable --now nginx
+systemctl enable nginx
+systemctl restart nginx
 
 # Do not enable a firewall automatically, but open web ports when one is already active.
 if command -v ufw >/dev/null && ufw status | grep -q '^Status: active'; then
@@ -220,7 +222,44 @@ chown "$APP_NAME:$NGINX_USER" "$INSTALL_DIR/storage.sqlite" 2>/dev/null || true
 chmod 0600 "$INSTALL_DIR/storage.sqlite" 2>/dev/null || true
 
 echo "Requesting the HTTPS certificate for ${TARGET}..."
-"$CERTBOT_BIN" --nginx --non-interactive --agree-tos --email "$EMAIL" --redirect "${CERTBOT_PROFILE_ARGS[@]}" -d "$TARGET"
+TLS_MODE="trusted"
+if ! "$CERTBOT_BIN" --nginx --non-interactive --agree-tos --email "$EMAIL" --redirect "${CERTBOT_PROFILE_ARGS[@]}" -d "$TARGET"; then
+  [[ -n "$IP_ADDRESS" ]] || { echo "HTTPS certificate request failed." >&2; exit 1; }
+  TLS_MODE="self-signed"
+  SSL_DIR="/etc/nginx/ssl/${APP_NAME}"
+  install -d -m 0700 "$SSL_DIR"
+  openssl req -x509 -newkey rsa:3072 -sha256 -nodes -days 825 \
+    -keyout "$SSL_DIR/server.key" -out "$SSL_DIR/server.crt" \
+    -subj "/CN=${IP_ADDRESS}" -addext "subjectAltName=IP:${IP_ADDRESS}"
+  chmod 0600 "$SSL_DIR/server.key"
+  cat >>"$NGINX_CONF" <<EOF
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name ${IP_ADDRESS};
+    root ${INSTALL_DIR};
+    index index.php;
+    ssl_certificate ${SSL_DIR}/server.crt;
+    ssl_certificate_key ${SSL_DIR}/server.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_timeout 1d;
+
+    location / { try_files \$uri \$uri/ /index.php?\$query_string; }
+    location = /index.php {
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME \$document_root/index.php;
+        fastcgi_param SCRIPT_NAME /index.php;
+        fastcgi_pass unix:/run/php/${APP_NAME}.sock;
+        fastcgi_read_timeout 60s;
+    }
+    location ~ \.php$ { return 404; }
+    location ~ /\.(?!well-known).* { deny all; }
+    location ~* \.(?:pem|sqlite|sqlite3|bak|log)$ { deny all; }
+}
+EOF
+fi
+nginx -t
 systemctl reload nginx
 
 echo
@@ -232,7 +271,11 @@ if [[ "$NEW_DATABASE" -eq 1 ]]; then
 else
   echo "Existing administrator password and application data were preserved."
 fi
-echo "Certificate renewal is managed by certbot's system timer."
-if [[ -n "$IP_ADDRESS" ]]; then
+if [[ "$TLS_MODE" == "trusted" ]]; then
+  echo "Certificate renewal is managed by certbot's system timer."
+else
+  echo "WARNING: The certificate authority rejected the bare IP. HTTPS uses a self-signed certificate and browsers will show a trust warning."
+fi
+if [[ -n "$IP_ADDRESS" && "$TLS_MODE" == "trusted" ]]; then
   echo "IP certificates are short-lived. Keep the server powered on so Certbot can renew them automatically."
 fi
