@@ -89,7 +89,8 @@ if [[ ! -f "$SOURCE_DIR/index.php" || ! -f "$SOURCE_DIR/bootstrap.php" ]]; then
   FETCH_DIR="$(mktemp -d /tmp/license-mvp-source.XXXXXX)"
   trap 'rm -rf "$FETCH_DIR"' EXIT
   echo "Downloading application source from ${REPO_URL} (${REPO_REF})..."
-  curl -fL --retry 3 "${REPO_URL%/}/archive/refs/heads/${REPO_REF}.tar.gz" -o "$FETCH_DIR/source.tar.gz"
+  REPO_BASE="${REPO_URL%.git}"
+  curl -fL --retry 3 "${REPO_BASE%/}/archive/refs/heads/${REPO_REF}.tar.gz" -o "$FETCH_DIR/source.tar.gz"
   tar -xzf "$FETCH_DIR/source.tar.gz" -C "$FETCH_DIR"
   SOURCE_DIR="$(dirname "$(find "$FETCH_DIR" -type f -name index.php -print -quit)")"
   [[ -f "$SOURCE_DIR/bootstrap.php" ]] || { echo "Downloaded repository does not contain the application." >&2; exit 1; }
