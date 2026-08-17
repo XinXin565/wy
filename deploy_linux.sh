@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Linux one-command deployment for the License MVP.
-# Usage: curl -fsSL https://raw.githubusercontent.com/XinXin565/wy/main/卡密验证系统/mvp/deploy_linux.sh | sudo bash -s -- --ip 203.0.113.10 --email ops@example.com
+# Usage: curl -fsSL https://raw.githubusercontent.com/XinXin565/wy/main/deploy_linux.sh | sudo bash -s -- --ip 203.0.113.10 --email ops@example.com
 set -Eeuo pipefail
 
 APP_NAME="license-mvp"
@@ -13,7 +13,7 @@ REPO_REF="main"
 
 usage() {
   cat <<'EOF'
-Usage: curl -fsSL https://raw.githubusercontent.com/XinXin565/wy/main/卡密验证系统/mvp/deploy_linux.sh | sudo bash -s -- (--domain license.example.com | --ip 203.0.113.10) --email ops@example.com
+Usage: curl -fsSL https://raw.githubusercontent.com/XinXin565/wy/main/deploy_linux.sh | sudo bash -s -- (--domain license.example.com | --ip 203.0.113.10) --email ops@example.com
        sudo bash deploy_linux.sh (--domain license.example.com | --ip 203.0.113.10) --email ops@example.com [--install-dir /opt/license-mvp]
 
 Requirements:
