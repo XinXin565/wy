@@ -48,7 +48,7 @@ sudo bash deploy_linux.sh --ip 服务器公网IP --email ops@example.com
 不上传项目文件也可以直接部署，服务器执行：
 
 ```bash
-curl -fsSL 'https://raw.githubusercontent.com/XinXin565/wy/main/%E5%8D%A1%E5%AF%86%E9%AA%8C%E8%AF%81%E7%B3%BB%E7%BB%9F/mvp/deploy_linux.sh' | sudo bash -s -- --ip 服务器公网IP --email ops@example.com
+curl -fsSL 'https://raw.githubusercontent.com/XinXin565/wy/main/deploy_linux.sh' | sudo bash -s -- --ip 服务器公网IP --email ops@example.com
 ```
 
 脚本会自动下载 `main` 分支源码；如需其他仓库或分支，可追加 `--repo-url` 和 `--repo-ref`。
