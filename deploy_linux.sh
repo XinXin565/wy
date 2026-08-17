@@ -68,7 +68,7 @@ fi
 if command -v apt-get >/dev/null; then
   export DEBIAN_FRONTEND=noninteractive
   apt-get update
-  apt-get install -y curl ca-certificates tar nginx certbot python3-certbot-nginx rsync openssl nodejs php-fpm php-cli php-sqlite3 php-opcache
+  apt-get install -y curl ca-certificates tar nginx certbot python3-certbot-nginx python3-venv rsync openssl nodejs php-fpm php-cli php-sqlite3 php-opcache
   NGINX_USER="www-data"
   PHP_VERSION="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')"
   POOL_DIR="/etc/php/${PHP_VERSION}/fpm/pool.d"
@@ -96,8 +96,16 @@ if [[ ! -f "$SOURCE_DIR/index.php" || ! -f "$SOURCE_DIR/bootstrap.php" ]]; then
   [[ -f "$SOURCE_DIR/bootstrap.php" ]] || { echo "Downloaded repository does not contain the application." >&2; exit 1; }
 fi
 
-if [[ -n "$IP_ADDRESS" ]] && ! certbot --help all | grep -q -- '--preferred-profile'; then
-  echo "The installed Certbot does not support Let's Encrypt IP certificates. Install a current Certbot release, then run the script again." >&2
+CERTBOT_BIN="$(command -v certbot)"
+if [[ -n "$IP_ADDRESS" ]] && ! "$CERTBOT_BIN" --help all 2>/dev/null | grep -q -- '--preferred-profile'; then
+  CERTBOT_VENV="/opt/${APP_NAME}-certbot"
+  python3 -m venv "$CERTBOT_VENV"
+  "$CERTBOT_VENV/bin/pip" install --upgrade --quiet certbot certbot-nginx
+  CERTBOT_BIN="$CERTBOT_VENV/bin/certbot"
+fi
+
+if [[ -n "$IP_ADDRESS" ]] && ! "$CERTBOT_BIN" --help all 2>/dev/null | grep -q -- '--preferred-profile'; then
+  echo "The installed Certbot does not support Let's Encrypt IP certificates." >&2
   exit 1
 fi
 
@@ -212,7 +220,7 @@ chown "$APP_NAME:$NGINX_USER" "$INSTALL_DIR/storage.sqlite" 2>/dev/null || true
 chmod 0600 "$INSTALL_DIR/storage.sqlite" 2>/dev/null || true
 
 echo "Requesting the HTTPS certificate for ${TARGET}..."
-certbot --nginx --non-interactive --agree-tos --email "$EMAIL" --redirect "${CERTBOT_PROFILE_ARGS[@]}" -d "$TARGET"
+"$CERTBOT_BIN" --nginx --non-interactive --agree-tos --email "$EMAIL" --redirect "${CERTBOT_PROFILE_ARGS[@]}" -d "$TARGET"
 systemctl reload nginx
 
 echo
