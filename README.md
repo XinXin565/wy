@@ -36,3 +36,23 @@ php-runtime\php.exe -c php-runtime\php.ini -d extension_dir=php-runtime\ext migr
 ```
 
 数据运维：`.\backup.ps1` 创建 SQLite 备份，`.\restore.ps1 -InputFile <备份文件>` 恢复。恢复前会自动保留当前数据库副本。
+
+## Linux 一键部署（Nginx + HTTPS）
+
+将整个 `mvp` 目录上传到 Linux 服务器后，在项目根目录执行：
+
+```bash
+sudo bash deploy_linux.sh --ip 服务器公网IP --email ops@example.com
+```
+
+不上传项目文件也可以直接部署，服务器执行：
+
+```bash
+curl -fsSL 'https://raw.githubusercontent.com/XinXin565/wy/main/%E5%8D%A1%E5%AF%86%E9%AA%8C%E8%AF%81%E7%B3%BB%E7%BB%9F/mvp/deploy_linux.sh' | sudo bash -s -- --ip 服务器公网IP --email ops@example.com
+```
+
+脚本会自动下载 `main` 分支源码；如需其他仓库或分支，可追加 `--repo-url` 和 `--repo-ref`。
+
+脚本支持 Debian/Ubuntu 和 RHEL 系发行版，会安装 Nginx、PHP-FPM、SQLite、OpenSSL、Node.js 与 Certbot，自动申请 Let’s Encrypt 证书并把 HTTP 跳转到 HTTPS。无需域名时使用 `--ip` 传入服务器公网 IPv4；IP 证书有效期较短，脚本会交给 Certbot 自动续期。也可用 `--domain license.example.com` 使用域名证书。执行前须确保目标域名已解析或目标 IP 即为本机公网 IP，且安全组/防火墙已放行 TCP `80` 与 `443`。
+
+部署完成后访问 `https://服务器公网IP/admin`。脚本会生成一次性管理员密码并打印在终端；请首次登录后立即修改。再次执行脚本会保留现有 SQLite 数据库、RSA 密钥和密钥备份。
