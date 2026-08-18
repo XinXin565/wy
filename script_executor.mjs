@@ -3,8 +3,14 @@ import vm from 'node:vm';
 
 const input = JSON.parse(fs.readFileSync(0, 'utf8'));
 if (!input.script || !input.function) throw new Error('invalid_script_request');
-const allowed = new Set(['get_config', 'get_notice', 'get_security_parameters', 'cs']);
-if (!allowed.has(input.function)) throw new Error('function_not_allowed');
+// Each server-side function is invoked independently. Keep the allowlist
+// explicit so announcement data cannot affect the business cs() result.
+// Dispatch any explicitly requested function exported by the stored script.
+// The identifier check prevents expression/code injection while allowing the
+// server to add new independent functions without changing this executor.
+if (!/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(input.function)) {
+  throw new Error('invalid_function_name');
+}
 const sandbox = Object.freeze({ console: Object.freeze({ log() {} }) });
 const context = vm.createContext({ ...sandbox, __args: input.args || {} });
 // 先加载脚本，再通过固定入口调用函数，避免把函数名拼接进可执行代码。

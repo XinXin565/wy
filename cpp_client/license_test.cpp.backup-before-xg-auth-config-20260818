@@ -12,8 +12,6 @@
 #include <string>
 #include <thread>
 #include <vector>
-#include "../../../XinXin Ui/login_ui/auth_transport_config.h"
-#include "../../../XinXin Ui/login_ui/tls_spki_pin.h"
 #pragma comment(lib, "winhttp.lib")
 #pragma comment(lib, "advapi32.lib")
 #pragma comment(lib, "crypt32.lib")
@@ -27,13 +25,20 @@ constexpr UINT WM_HEARTBEAT_STATUS = WM_APP + 1;
 std::atomic_bool heartbeat_running{false};
 std::atomic_bool logout_sent{false};
 std::string active_license;
-const std::string PRODUCT_CODE = xg_auth::kProductCode;
-const std::string PRODUCT_NAME = xg_auth::kProductName;
+const std::string PRODUCT_CODE = "1";
+const std::string PRODUCT_NAME = "XinGodSKJH";
 const std::string CLIENT_VERSION = "3.0.0";
 std::atomic_bool product_ready{false};
 
 // SubjectPublicKeyInfo DER, base64 encoded. Rotate this per release build.
-constexpr const char* SERVER_PUBLIC_KEY_B64 = xg_auth::kServerPublicKeyB64;
+constexpr const char* SERVER_PUBLIC_KEY_B64 =
+"MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuwo3JtKNfLGY+VmeyQbn"
+"MCAwrzZL1V0eMMXB7nxsc5rOS2QyQTLW5FEtGeaLR9Eeo8xICdFukVKsL/5+PjnE"
+"aFuFma1EQdUxeR+RwWr0vVSU5gxugWA7QpxLj+H2i1CSalIWT1OBdcUP/enMO3a5"
+"GuUxThcBgLnBSuMZev/STKiusAr0GX4WUE3Uce/3q4Zr2T87CPjPSSYbm8YHCoUX"
+"huy7F1/D4mGe+49m1d43Yxfwv2RstzxYGt2K6rWgqiuxuH5lp6dIMBQCGb/3+VI+"
+"RrdDTdYPTL2s3PpYokqqDmosuANooAxhFbvk01Ysk8se+Dw1F9C7hvqQI69szUON"
+"tQIDAQAB";
 
 std::wstring utf8_to_wide(const std::string& s) { if(s.empty()) return L""; int n=MultiByteToWideChar(CP_UTF8,0,s.data(),(int)s.size(),nullptr,0); std::wstring r(n,L'\0'); MultiByteToWideChar(CP_UTF8,0,s.data(),(int)s.size(),r.data(),n); return r; }
 std::string wide_to_utf8(const std::wstring& s) { if(s.empty()) return ""; int n=WideCharToMultiByte(CP_UTF8,0,s.data(),(int)s.size(),nullptr,0,nullptr,nullptr); std::string r(n,'\0'); WideCharToMultiByte(CP_UTF8,0,s.data(),(int)s.size(),r.data(),n,nullptr,nullptr); return r; }
@@ -48,50 +53,9 @@ struct Response { DWORD status{}; std::string body; };
 std::string json_value(const std::string& j,const std::string& key){std::string m="\""+key+"\":\"";auto p=j.find(m);if(p==std::string::npos)return"";p+=m.size();auto e=j.find('"',p);return e==std::string::npos?"":j.substr(p,e-p);}
 std::vector<BYTE> aes_gcm(bool encrypt,const std::vector<BYTE>& key,const std::vector<BYTE>& iv,const std::string& aad,const std::vector<BYTE>& input,std::vector<BYTE>& tag){BCRYPT_ALG_HANDLE alg=nullptr;BCRYPT_KEY_HANDLE kh=nullptr;DWORD obj=0,cb=0,outSize=(DWORD)input.size();if(BCryptOpenAlgorithmProvider(&alg,BCRYPT_AES_ALGORITHM,nullptr,0)<0)throw std::runtime_error("aes provider failed");BCryptSetProperty(alg,BCRYPT_CHAINING_MODE,(PUCHAR)BCRYPT_CHAIN_MODE_GCM,(ULONG)sizeof(BCRYPT_CHAIN_MODE_GCM),0);BCryptGetProperty(alg,BCRYPT_OBJECT_LENGTH,(PUCHAR)&obj,sizeof(obj),&cb,0);std::vector<BYTE> object(obj);if(BCryptGenerateSymmetricKey(alg,&kh,object.data(),obj,(PUCHAR)key.data(),(ULONG)key.size(),0)<0)throw std::runtime_error("aes key failed");BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO info;BCRYPT_INIT_AUTH_MODE_INFO(info);info.pbNonce=(PUCHAR)iv.data();info.cbNonce=(ULONG)iv.size();info.pbAuthData=(PUCHAR)aad.data();info.cbAuthData=(ULONG)aad.size();if(encrypt){tag.resize(16);info.pbTag=tag.data();info.cbTag=(ULONG)tag.size();}else{info.pbTag=tag.data();info.cbTag=(ULONG)tag.size();}std::vector<BYTE> out(input.size());NTSTATUS st=encrypt?BCryptEncrypt(kh,(PUCHAR)input.data(),(ULONG)input.size(),&info,nullptr,0,out.data(),(ULONG)out.size(),&outSize,0):BCryptDecrypt(kh,(PUCHAR)input.data(),(ULONG)input.size(),&info,nullptr,0,out.data(),(ULONG)out.size(),&outSize,0);BCryptDestroyKey(kh);BCryptCloseAlgorithmProvider(alg,0);if(st<0)throw std::runtime_error(encrypt?"encrypt failed":"response authentication failed");out.resize(outSize);return out;}
 std::vector<BYTE> rsa_oaep(const std::vector<BYTE>& secret){std::vector<BYTE> der=b64url_decode(SERVER_PUBLIC_KEY_B64);CERT_PUBLIC_KEY_INFO* info=nullptr;DWORD cb=0;if(!CryptDecodeObject(X509_ASN_ENCODING,X509_PUBLIC_KEY_INFO,der.data(),(DWORD)der.size(),0,nullptr,0,&cb))throw std::runtime_error("public key decode failed");std::vector<BYTE> mem(cb);info=(CERT_PUBLIC_KEY_INFO*)mem.data();if(!CryptDecodeObject(X509_ASN_ENCODING,X509_PUBLIC_KEY_INFO,der.data(),(DWORD)der.size(),0,info,&cb))throw std::runtime_error("public key parse failed");BCRYPT_KEY_HANDLE key=nullptr;if(!CryptImportPublicKeyInfoEx2(X509_ASN_ENCODING,info,0,nullptr,&key))throw std::runtime_error("public key import failed");BCRYPT_OAEP_PADDING_INFO padding{BCRYPT_SHA1_ALGORITHM,nullptr,0};ULONG n=0;BCryptEncrypt(key,(PUCHAR)secret.data(),(ULONG)secret.size(),&padding,nullptr,0,nullptr,0,&n,BCRYPT_PAD_OAEP);std::vector<BYTE> out(n);if(BCryptEncrypt(key,(PUCHAR)secret.data(),(ULONG)secret.size(),&padding,nullptr,0,out.data(),n,&n,BCRYPT_PAD_OAEP)<0)throw std::runtime_error("key wrapping failed");BCryptDestroyKey(key);out.resize(n);return out;}
-Response http_post(const std::string& endpoint,const std::string& body) {
-    HINTERNET session = nullptr, connection = nullptr, request = nullptr;
-    try {
-        session = WinHttpOpen(L"LicenseMvpGui/3.0", WINHTTP_ACCESS_TYPE_NO_PROXY, nullptr, nullptr, 0);
-        if (!session) throw std::runtime_error("cannot initialize license transport");
-        const std::wstring host = utf8_to_wide(xg_auth::kHost);
-        connection = WinHttpConnect(session, host.c_str(), INTERNET_DEFAULT_HTTPS_PORT, 0);
-        if (!connection) throw std::runtime_error("cannot connect license service");
-
-        xg_tls_pin::VerifyConnection(connection);
-
-        const std::wstring path(endpoint.begin(), endpoint.end());
-        request = WinHttpOpenRequest(connection, L"POST", path.c_str(), nullptr,
-            WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
-        if (!request) throw std::runtime_error("cannot create license request");
-        const wchar_t* headers = L"Content-Type: application/octet-stream\r\n";
-        if (!WinHttpSendRequest(request, headers, static_cast<DWORD>(-1),
-                const_cast<char*>(body.data()), static_cast<DWORD>(body.size()), static_cast<DWORD>(body.size()), 0)) {
-            throw std::runtime_error("network send failed");
-        }
-        xg_tls_pin::VerifyRequest(request);
-        if (!WinHttpReceiveResponse(request, nullptr)) throw std::runtime_error("network receive failed");
-
-        DWORD status = 0, statusSize = sizeof(status);
-        WinHttpQueryHeaders(request, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
-            nullptr, &status, &statusSize, nullptr);
-        std::string output;
-        char buffer[4096];
-        DWORD received = 0;
-        while (WinHttpReadData(request, buffer, sizeof(buffer), &received) && received) output.append(buffer, received);
-
-        WinHttpCloseHandle(request);
-        WinHttpCloseHandle(connection);
-        WinHttpCloseHandle(session);
-        return {status, output};
-    } catch (...) {
-        if (request) WinHttpCloseHandle(request);
-        if (connection) WinHttpCloseHandle(connection);
-        if (session) WinHttpCloseHandle(session);
-        throw;
-    }
-}
+Response http_post(const std::string& endpoint,const std::string& body){HINTERNET s=WinHttpOpen(L"LicenseMvpGui/3.0",WINHTTP_ACCESS_TYPE_NO_PROXY,nullptr,nullptr,0),c=s?WinHttpConnect(s,L"127.0.0.1",8080,0):nullptr;std::wstring p(endpoint.begin(),endpoint.end());HINTERNET r=c?WinHttpOpenRequest(c,L"POST",p.c_str(),nullptr,WINHTTP_NO_REFERER,WINHTTP_DEFAULT_ACCEPT_TYPES,0):nullptr;if(!r)throw std::runtime_error("cannot connect license service");const wchar_t* h=L"Content-Type: application/octet-stream\r\n";if(!WinHttpSendRequest(r,h,(DWORD)-1,(void*)body.data(),(DWORD)body.size(),(DWORD)body.size(),0)||!WinHttpReceiveResponse(r,nullptr))throw std::runtime_error("network failed");DWORD status=0,n=sizeof(status);WinHttpQueryHeaders(r,WINHTTP_QUERY_STATUS_CODE|WINHTTP_QUERY_FLAG_NUMBER,nullptr,&status,&n,nullptr);std::string out;char b[4096];DWORD got=0;while(WinHttpReadData(r,b,sizeof(b),&got)&&got)out.append(b,got);WinHttpCloseHandle(r);WinHttpCloseHandle(c);WinHttpCloseHandle(s);return{status,out};}
 Response secure_post(const std::string& action,const std::string& license){std::string path="/api/v3/licenses/"+action,device=device_code();auto key=random_bytes(32),iv=random_bytes(12),nonce=random_bytes(24);std::string nonceText=b64url(nonce),ts=std::to_string(std::time(nullptr)),plain="{\"license_key\":\""+json_escape(license)+"\",\"product_code\":\""+PRODUCT_CODE+"\",\"device_id\":\""+device+"\",\"device_name\":\""+device+"\",\"_path\":\""+path+"\",\"_timestamp\":\""+ts+"\",\"_nonce\":\""+nonceText+"\"}";std::vector<BYTE>tag,bytes(plain.begin(),plain.end()),cipher=aes_gcm(true,key,iv,"",bytes,tag),wrapped=rsa_oaep(key);std::string packet("LK3\0",4);packet.append((char*)wrapped.data(),wrapped.size());packet.append((char*)iv.data(),iv.size());packet.append((char*)tag.data(),tag.size());packet.append((char*)cipher.data(),cipher.size());Response r=http_post(path,packet);if(r.body.size()<32||r.body.compare(0,4,"LR3\0",4)!=0)return r;std::vector<BYTE>riv(r.body.begin()+4,r.body.begin()+16),rtag(r.body.begin()+16,r.body.begin()+32),rc(r.body.begin()+32,r.body.end()),decoded=aes_gcm(false,key,riv,"",rc,rtag);r.body.assign(decoded.begin(),decoded.end());return r;}
-Response secure_bootstrap(const std::string& license={}){std::string path="/api/v3/products/bootstrap",device=device_code();auto key=random_bytes(32),iv=random_bytes(12),nonce=random_bytes(24);std::string nonceText=b64url(nonce),ts=std::to_string(std::time(nullptr)),licenseField=license.empty()?"":"\"license_key\":\""+json_escape(license)+"\",";std::string plain="{"+licenseField+"\"product_code\":\""+PRODUCT_CODE+"\",\"client_version\":\""+CLIENT_VERSION+"\",\"device_id\":\""+device+"\",\"device_name\":\""+device+"\",\"_path\":\""+path+"\",\"_timestamp\":\""+ts+"\",\"_nonce\":\""+nonceText+"\"}";std::vector<BYTE>tag,bytes(plain.begin(),plain.end()),cipher=aes_gcm(true,key,iv,"",bytes,tag),wrapped=rsa_oaep(key);std::string packet("LK3\0",4);packet.append((char*)wrapped.data(),wrapped.size());packet.append((char*)iv.data(),iv.size());packet.append((char*)tag.data(),tag.size());packet.append((char*)cipher.data(),cipher.size());Response r=http_post(path,packet);if(r.body.size()<32||r.body.compare(0,4,"LR3\0",4)!=0)return r;std::vector<BYTE>riv(r.body.begin()+4,r.body.begin()+16),rtag(r.body.begin()+16,r.body.begin()+32),rc(r.body.begin()+32,r.body.end()),decoded=aes_gcm(false,key,riv,"",rc,rtag);r.body.assign(decoded.begin(),decoded.end());return r;}
+Response secure_bootstrap(){std::string path="/api/v3/products/bootstrap",device=device_code();auto key=random_bytes(32),iv=random_bytes(12),nonce=random_bytes(24);std::string nonceText=b64url(nonce),ts=std::to_string(std::time(nullptr)),plain="{\"product_code\":\""+PRODUCT_CODE+"\",\"client_version\":\""+CLIENT_VERSION+"\",\"device_id\":\""+device+"\",\"device_name\":\""+device+"\",\"_path\":\""+path+"\",\"_timestamp\":\""+ts+"\",\"_nonce\":\""+nonceText+"\"}";std::vector<BYTE>tag,bytes(plain.begin(),plain.end()),cipher=aes_gcm(true,key,iv,"",bytes,tag),wrapped=rsa_oaep(key);std::string packet("LK3\0",4);packet.append((char*)wrapped.data(),wrapped.size());packet.append((char*)iv.data(),iv.size());packet.append((char*)tag.data(),tag.size());packet.append((char*)cipher.data(),cipher.size());Response r=http_post(path,packet);if(r.body.size()<32||r.body.compare(0,4,"LR3\0",4)!=0)return r;std::vector<BYTE>riv(r.body.begin()+4,r.body.begin()+16),rtag(r.body.begin()+16,r.body.begin()+32),rc(r.body.begin()+32,r.body.end()),decoded=aes_gcm(false,key,riv,"",rc,rtag);r.body.assign(decoded.begin(),decoded.end());return r;}
 std::wstring error_text(const std::string& b,bool offline){std::wstring p=offline?L"已下线：":L"登录失败：";if(b.find("license_suspended")!=std::string::npos)return p+L"卡密已被封禁。";if(b.find("license_expired")!=std::string::npos)return p+L"卡密已到期。";if(b.find("license_revoked")!=std::string::npos)return p+L"卡密已被撤销。";if(b.find("device_not_bound")!=std::string::npos)return p+L"设备唯一码未绑定或已失效。";if(b.find("device_limit_reached")!=std::string::npos)return p+L"设备数量已达上限。";if(b.find("invalid_license")!=std::string::npos)return p+L"卡密错误。";auto code=json_value(b,"error");return p+(code.empty()?L"验证失败。":L"加密协议错误："+utf8_to_wide(code));}
 void set_status(HWND w,const std::wstring& s){SetWindowTextW(GetDlgItem(w,ID_STATUS),s.c_str());} void post_status(HWND w,const std::wstring& s){PostMessageW(w,WM_HEARTBEAT_STATUS,0,(LPARAM)new std::wstring(s));}
 bool ensure_product(HWND w){try{set_status(w,L"Checking product...");Response r=secure_bootstrap();if(r.status!=200){if(r.body.find("product_not_found")!=std::string::npos)set_status(w,L"Product does not exist.");else if(r.body.find("product_disabled")!=std::string::npos)set_status(w,L"Product is disabled.");else if(r.body.find("client_version_too_old")!=std::string::npos){auto u=json_value(r.body,"update_url");set_status(w,L"Client version is too old. Please update.");if(!u.empty())post_status(w,utf8_to_wide("Update: "+u));}else set_status(w,L"Product verification failed.");return false;}product_ready=true;auto title=json_value(r.body,"title"),announcement=json_value(r.body,"content"),version=json_value(r.body,"version");if(!announcement.empty()){std::wstring msg=L"公告";if(!title.empty())msg+=L" ["+utf8_to_wide(title)+L"]";msg+=L"\r\n"+utf8_to_wide(announcement);post_status(w,msg);}if(!version.empty()&&version!=CLIENT_VERSION)post_status(w,L"New version available: "+utf8_to_wide(version));return true;}catch(...){set_status(w,L"Product verification network error.");return false;}}
