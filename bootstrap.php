@@ -24,7 +24,6 @@ CREATE TABLE IF NOT EXISTS audit_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, act
 $pcCols=$db->query('PRAGMA table_info(product_configs)')->fetchAll(PDO::FETCH_COLUMN,1);
 foreach(['announcement_published_at'=>"TEXT NOT NULL DEFAULT ''",'crypto_key_version'=>"TEXT NOT NULL DEFAULT '1'",'crypto_rotation_enabled'=>"INTEGER NOT NULL DEFAULT 0",'effective_at'=>"TEXT NOT NULL DEFAULT ''"] as $cn=>$ct) if(!in_array($cn,$pcCols,true)) $db->exec("ALTER TABLE product_configs ADD COLUMN $cn $ct");
 $db->exec("INSERT OR IGNORE INTO product_configs(id,product_id,product_code,updated_at) SELECT lower(hex(randomblob(16))),id,code,created_at FROM products");
-$seed=$db->prepare('SELECT id FROM products WHERE code=?'); $seed->execute(['debug']); if(!$seed->fetchColumn()){ $pid=bin2hex(random_bytes(16)); $now=gmdate('c'); $db->prepare('INSERT INTO products(id,code,name,status,created_at) VALUES(?,?,?,?,?)')->execute([$pid,'debug','调试产品','active',$now]); $db->prepare('INSERT INTO product_configs(id,product_id,product_code,updated_at) VALUES(?,?,?,?)')->execute([bin2hex(random_bytes(16)),$pid,'debug',$now]); }
 $productColumns=$db->query('PRAGMA table_info(products)')->fetchAll(PDO::FETCH_COLUMN,1);
 if(!in_array('announcement',$productColumns,true)) $db->exec("ALTER TABLE products ADD COLUMN announcement TEXT NOT NULL DEFAULT ''");
 if(!in_array('version',$productColumns,true)) $db->exec("ALTER TABLE products ADD COLUMN version TEXT NOT NULL DEFAULT '1.0.0'");
