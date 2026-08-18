@@ -53,7 +53,7 @@ if ($adminCount === 0) {
 }
 $entrySetting = $db->prepare('SELECT value FROM system_settings WHERE key=?');
 $entrySetting->execute(['admin_entry_password_hash']);
-if (!$entrySetting->fetchColumn()) $db->prepare('INSERT OR REPLACE INTO system_settings(key,value,updated_at) VALUES(?,?,?)')->execute(['admin_entry_password_hash', password_hash('XInXin', PASSWORD_DEFAULT), gmdate('c')]);
+if (!$entrySetting->fetchColumn()) $db->prepare('INSERT OR REPLACE INTO system_settings(key,value,updated_at) VALUES(?,?,?)')->execute(['admin_entry_password_hash', password_hash('XinXin', PASSWORD_DEFAULT), gmdate('c')]);
 function admin_user(): ?array { return isset($_SESSION['admin_id'], $_SESSION['admin_role']) ? ['id'=>$_SESSION['admin_id'], 'username'=>$_SESSION['admin_username'] ?? 'admin', 'role'=>$_SESSION['admin_role']] : null; }
 function require_admin(array $roles = []): array {
     $user = admin_user();
