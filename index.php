@@ -5,6 +5,7 @@ $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $method = $_SERVER['REQUEST_METHOD']; $body = input_json();
 // The security entry password is a path segment, not a login form field.
 if ($method === 'GET' && preg_match('#^/([A-Za-z0-9_-]{6,64})$#', $path, $entryMatch)) { $eq=$db->prepare('SELECT value FROM system_settings WHERE key=?');$eq->execute(['admin_entry_password_hash']);$entryHash=(string)$eq->fetchColumn();if($entryHash&&password_verify($entryMatch[1],$entryHash)){$_SESSION['admin_entry_verified']=true;header('Location: /admin/login');exit;} }
+if (str_starts_with($path, '/admin') && empty($_SESSION['admin_entry_verified']) && $path !== '/admin_fix.js') { http_response_code(404); echo 'Not Found'; exit; }
 // Public browser endpoint: intentionally exposes only the latest version and download URL.
 if ($method === 'GET' && $path === '/api/v3/products/release') {
     $code=trim((string)($_GET['product_code']??''));
