@@ -1,6 +1,33 @@
 let adminCsrfPromise;
 // 企业级玻璃主题：只增强材质和状态反馈，不改变现有业务结构。
 (() => {
+  const ensureSettingsNavigation = () => {
+    const nav = document.querySelector('[data-view="logs"]')?.parentElement;
+    if (nav && !document.querySelector('[data-view="settings"]')) nav.insertAdjacentHTML('afterend', '<li class="layui-nav-item"><a href="javascript:" data-view="settings"><i class="layui-icon layui-icon-set"></i> 系统设置</a></li>');
+    if (!document.querySelector('#settings')) {
+      const body = document.querySelector('.layui-body');
+      if (body) { const page = document.createElement('section'); page.id='settings'; page.className='page'; body.appendChild(page); }
+    }
+    document.querySelectorAll('[data-view="settings"]').forEach((item) => {
+      if (item.dataset.settingsBound) return;
+      item.dataset.settingsBound='1';
+      item.addEventListener('click', () => {
+        document.querySelectorAll('.page').forEach((page) => page.classList.toggle('active', page.id === 'settings'));
+        document.querySelectorAll('.layui-nav-tree .layui-nav-item').forEach((li) => li.classList.toggle('layui-this', li.contains(item)));
+        location.hash='settings';
+        setTimeout(() => window.initSettings?.(), 0);
+      });
+    });
+    if (location.hash === '#settings') {
+      document.querySelectorAll('.page').forEach((page) => page.classList.toggle('active', page.id === 'settings'));
+      document.querySelectorAll('.layui-nav-tree .layui-nav-item').forEach((li) => li.classList.toggle('layui-this', li.querySelector('[data-view="settings"]')));
+    }
+  };
+  setInterval(ensureSettingsNavigation, 500);
+  setTimeout(ensureSettingsNavigation, 120);
+})();
+
+(() => {
   if (document.getElementById('glassTheme')) return;
   const style = document.createElement('style');
   style.id = 'glassTheme';
@@ -34,6 +61,58 @@ let adminCsrfPromise;
     @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;}}
   `;
   document.head.appendChild(style);
+})();
+
+// 服务器传输密钥仅由管理员管理；私钥默认不渲染，避免在打开设置页时暴露。
+(() => {
+  const formatKeyTime = (value) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value || '未知';
+    const part = (n) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${part(date.getMonth() + 1)}-${part(date.getDate())} ${part(date.getHours())}:${part(date.getMinutes())}:${part(date.getSeconds())}`;
+  };
+  const copyText = async (value, success) => {
+    try { await navigator.clipboard.writeText(value); layui.layer.msg(success, {icon: 1}); }
+    catch (_) { layui.layer.msg('复制失败，请手动复制', {icon: 2}); }
+  };
+  const mount = () => {
+    const root = document.querySelector('#p2Settings');
+    if (!root || document.querySelector('#serverKeyPanel')) return;
+    root.insertAdjacentHTML('beforeend', `<div class="layui-col-md12" id="serverKeyPanel"><div class="layui-card"><div class="layui-card-header">服务器专用密钥</div><div class="layui-card-body"><p class="muted" style="margin:0 0 14px">用于 v3 加密传输的 RSA 密钥对。重新生成后，使用旧公钥编译的客户端将无法连接，必须使用新公钥重新编译客户端。</p><div id="serverKeyStatus" class="muted">正在读取密钥状态...</div><div style="margin-top:14px"><label style="display:block;margin-bottom:6px;font-weight:600">公钥</label><textarea id="serverPublicKey" class="layui-textarea server-key-text" readonly placeholder="尚未配置公钥"></textarea></div><div style="margin-top:12px"><button type="button" class="layui-btn layui-btn-sm layui-btn-primary" id="copyServerPublicKey">复制公钥</button> <button type="button" class="layui-btn layui-btn-sm layui-btn-primary" id="revealServerPrivateKey">显示私钥</button> <button type="button" class="layui-btn layui-btn-sm layui-btn-danger" id="generateServerKeyPair">重新生成密钥对</button></div></div></div></div>`);
+    const status = document.querySelector('#serverKeyStatus');
+    const publicBox = document.querySelector('#serverPublicKey');
+    const load = async () => {
+      try {
+        const j = await adminApiRequest('/admin/server-keys', {cache: 'no-store'});
+        publicBox.value = j.public_key || '';
+        const privateState = j.private_key_exists ? '已配置' : '缺失';
+        const publicState = j.public_key_exists ? '已配置' : '缺失';
+        status.textContent = `私钥：${privateState} · 公钥：${publicState} · 指纹：${j.fingerprint || '无'} · 生成时间：${formatKeyTime(j.generated_at)}`;
+      } catch (e) {
+        status.textContent = e.payload?.error === 'permission_denied' ? '仅管理员可查看服务器专用密钥。' : '密钥状态读取失败。';
+      }
+    };
+    document.querySelector('#copyServerPublicKey').onclick = () => publicBox.value ? copyText(publicBox.value, '公钥已复制') : layui.layer.msg('当前没有可复制的公钥');
+    document.querySelector('#revealServerPrivateKey').onclick = async () => {
+      try {
+        const j = await adminApiRequest('/admin/server-keys?reveal=1', {cache: 'no-store'});
+        if (!j.private_key) return layui.layer.msg('当前未配置私钥', {icon: 2});
+        const privateKey = j.private_key;
+        layui.layer.open({type: 1, title: '服务器私钥（请妥善保管）', area: ['min(760px,92vw)', '520px'], content: '<div style="padding:16px"><p style="margin:0 0 10px;color:#a94442">私钥只应保存在服务器，禁止写入客户端或公开传播。</p><textarea id="serverPrivateKeyValue" class="layui-textarea server-key-text" readonly></textarea><button type="button" class="layui-btn layui-btn-sm" id="copyServerPrivateKey" style="margin-top:12px">复制私钥</button></div>', success: () => { document.querySelector('#serverPrivateKeyValue').value = privateKey; document.querySelector('#copyServerPrivateKey').onclick = () => copyText(privateKey, '私钥已复制'); }});
+      } catch (_) { layui.layer.msg('私钥读取失败', {icon: 2}); }
+    };
+    document.querySelector('#generateServerKeyPair').onclick = () => layui.layer.confirm('重新生成会立即替换服务器密钥。使用旧公钥编译的客户端会无法连接，必须重新编译。是否继续？', {title: '确认重新生成密钥对', icon: 3, btn: ['确认生成', '取消']}, async index => {
+      layui.layer.close(index);
+      try {
+        const j = await adminApiRequest('/admin/server-keys/generate', {method: 'POST', body: JSON.stringify({})});
+        layui.layer.open({type: 1, title: '密钥生成成功（私钥仅本次显示）', area: ['min(760px,92vw)', '600px'], content: '<div style="padding:16px"><p style="margin:0 0 10px">请备份私钥，并使用下方新公钥重新编译客户端。</p><label>私钥</label><textarea id="newServerPrivateKey" class="layui-textarea server-key-text" readonly></textarea><label style="display:block;margin-top:12px">公钥</label><textarea id="newServerPublicKey" class="layui-textarea server-key-text" readonly></textarea><button type="button" class="layui-btn layui-btn-sm" id="copyNewServerPublicKey" style="margin-top:12px">复制新公钥</button></div>', success: () => { document.querySelector('#newServerPrivateKey').value = j.private_key || ''; document.querySelector('#newServerPublicKey').value = j.public_key || ''; document.querySelector('#copyNewServerPublicKey').onclick = () => copyText(j.public_key || '', '新公钥已复制'); }});
+        await load();
+      } catch (e) { layui.layer.msg(e.payload?.error === 'openssl_unavailable' ? '服务器未启用 OpenSSL 扩展' : '密钥生成失败', {icon: 2}); }
+    });
+    load();
+  };
+  setInterval(mount, 500);
+  setTimeout(mount, 250);
 })();
 // 液态玻璃近似材质：使用 backdrop-filter，并为不支持透明度的浏览器提供实色回退。
 (() => {
@@ -149,7 +228,7 @@ window.adminApiRequest = async function adminApiRequest(url, options = {}) {
     const section = document.querySelector('#devices'); if (!section) return;
     if (!document.querySelector('#deviceFilters')) { section.querySelector('.layui-card-body')?.insertAdjacentHTML('afterbegin','<div id="deviceFilters" class="toolbar"><select id="deviceOnline" class="layui-input"><option value="">全部在线状态</option><option value="online">在线</option><option value="offline">离线</option></select><select id="deviceProduct" class="layui-input"><option value="">全部产品</option></select><input id="deviceKey" class="layui-input" placeholder="输入卡密前缀"><select id="deviceSince" class="layui-input"><option value="">全部心跳时间</option><option value="300">5 分钟内</option><option value="3600">1 小时内</option><option value="86400">1 天内</option></select></div>'); }
     const params = new URLSearchParams({page:'1',page_size:'200',online_status:document.querySelector('#deviceOnline')?.value||'',product_code:document.querySelector('#deviceProduct')?.value||'',license_key:document.querySelector('#deviceKey')?.value||'',since:document.querySelector('#deviceSince')?.value||''});
-    try { const j=await adminApiRequest('/admin/api/devices?'+params); const rows=j.items||[]; const body=section.querySelector('#deviceRows'); if(body) body.innerHTML=rows.length?rows.map(x=>`<tr><td><code>${esc(x.key_prefix)}</code></td><td><code>${esc(x.device_id)}</code></td><td>${esc(x.product_code)}</td><td>${esc(x.online_status==='online'?'在线':'离线')}</td><td>${esc(x.last_seen_at||'-')}</td><td><button class="layui-btn layui-btn-xs layui-btn-primary" data-device-detail="${esc(x.id)}">详情</button></td></tr>`).join(''):'<tr><td colspan="6" class="muted">暂无设备</td></tr>'; const products=[...new Set(rows.map(x=>x.product_code).filter(Boolean))]; const sel=document.querySelector('#deviceProduct'); if(sel){const cur=sel.value;sel.innerHTML='<option value="">全部产品</option>'+products.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');sel.value=products.includes(cur)?cur:'';} } catch (_) {}
+    try { const j=await adminApiRequest('/admin/api/devices?'+params); const rows=j.items||[]; const body=section.querySelector('#deviceRows'); if(body) body.innerHTML=rows.length?rows.map(x=>`<tr><td><code>${esc(x.key_prefix)}</code></td><td><code>${esc(x.device_id)}</code></td><td>${esc(x.product_code)}</td><td>${esc(x.online_status==='online'?'在线':'离线')}</td><td>${esc(x.last_seen_at||'-')}</td><td>${esc(x.last_run_version||'-')}</td><td><button class="layui-btn layui-btn-xs layui-btn-primary" data-device-detail="${esc(x.id)}">详情</button></td></tr>`).join(''):'<tr><td colspan="7" class="muted">暂无设备</td></tr>'; const products=[...new Set(rows.map(x=>x.product_code).filter(Boolean))]; const sel=document.querySelector('#deviceProduct'); if(sel){const cur=sel.value;sel.innerHTML='<option value="">全部产品</option>'+products.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');sel.value=products.includes(cur)?cur:'';} } catch (_) {}
     if(!deviceBound){deviceBound=true; ['#deviceOnline','#deviceProduct','#deviceKey','#deviceSince'].forEach(s=>document.querySelector(s)?.addEventListener('input',loadDevices));}
   };
   const loadReports = async () => { const root=document.querySelector('#overview'); if(!root||!root.classList.contains('active')) return; try { const j=await adminApiRequest('/admin/api/reports',{cache:'no-store'}); let card=document.querySelector('#reportCard'); if(!card){card=document.createElement('div');card.id='reportCard';card.className='layui-card';card.style.marginTop='16px';root.appendChild(card);} card.innerHTML='<div class="layui-card-header">运营报表</div><div class="layui-card-body"><table class="layui-table"><thead><tr><th>产品</th><th>卡密总数</th><th>已激活</th><th>已封禁</th></tr></thead><tbody>'+(j.by_product||[]).map(x=>`<tr><td>${esc(x.product_code)}</td><td>${x.licenses}</td><td>${x.active}</td><td>${x.suspended}</td></tr>`).join('')+'</tbody></table><div class="muted">失败原因：'+(j.failure_reasons||[]).map(x=>`${esc(x.reason||'未知')}（${x.total}）`).join('、')+'</div></div>'; } catch (_) {} };
@@ -549,7 +628,7 @@ window.adminApiRequest = async function adminApiRequest(url, options = {}) {
   function renderAudit() {
     const body = document.querySelector('#logRows'); const logs = (() => { try { return typeof data !== 'undefined' ? data.logs : (window.data?.logs || []); } catch (_) { return []; } })();
     if (!body) return;
-    body.innerHTML = logs.length ? logs.map((log) => `<tr><td><code>${esc(log.license_key || log.key_prefix || '系统')}</code></td><td>${esc(actionNames[log.action] || log.action || '未知动作')}</td><td><span class="layui-badge ${log.result === 'ok' ? 'layui-bg-green' : 'layui-bg-red'}">${esc(resultNames[log.result] || log.result || '未知')}</span></td><td>${esc(reasonNames[log.reason] || log.reason || '无')}</td><td>${esc(log.ip_address || '未知')}</td><td>${esc(fmt(log.created_at))}</td></tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:#8b95a7">暂无审计日志</td></tr>';
+    body.innerHTML = logs.length ? logs.map((log) => `<tr><td><code>${esc(log.license_key || log.key_prefix || '系统')}</code></td><td>${esc(actionNames[log.action] || log.action || '未知动作')}</td><td><span class="layui-badge ${log.result === 'ok' ? 'layui-bg-green' : 'layui-bg-red'}">${esc(resultNames[log.result] || log.result || '未知')}</span></td><td>${esc(reasonNames[log.reason] || log.reason || '无')}</td><td>${esc(log.ip_address || '未知')}</td><td>${esc(fmt(log.created_at))}</td></tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:#8b95a7">暂无审计日志</td></tr>';
   }
   const auditSection = document.querySelector('#logs');
   if (false && auditSection) {
@@ -598,8 +677,8 @@ window.adminApiRequest = async function adminApiRequest(url, options = {}) {
 
 (() => {
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const renderDevicesOnline = () => { let rows; try { rows = typeof data !== 'undefined' ? data.devices : (window.data?.devices || []); } catch (_) { rows = []; } const body = document.querySelector('#deviceRows, #devRows'); if (!body) return; body.innerHTML = rows.length ? rows.map((x) => { const online = x.online_status === 'online' && x.status === 'active'; return `<tr><td>${esc(x.license_key || x.key_prefix || '')}</td><td>${esc(x.device_name || '未命名设备')}</td><td>${online ? '<span class="layui-badge layui-bg-green">在线</span>' : '<span class="layui-badge layui-bg-gray">离线</span>'}</td><td>${esc(x.last_seen_at || '')}</td></tr>`; }).join('') : '<tr><td colspan="4" class="empty">暂无设备</td></tr>'; };
-  const section = document.querySelector('#devices'); const head = section?.querySelector('thead tr'); if (head) head.innerHTML = '<th>卡密</th><th>设备唯一码</th><th>在线情况</th><th>最后心跳</th>'; window.renderDevicesOnline = renderDevicesOnline; document.querySelectorAll('[data-view="devices"]').forEach((x) => x.addEventListener('click', () => setTimeout(renderDevicesOnline, 0))); document.addEventListener('DOMContentLoaded', renderDevicesOnline); setTimeout(renderDevicesOnline, 140);
+  const renderDevicesOnline = () => { let rows; try { rows = typeof data !== 'undefined' ? data.devices : (window.data?.devices || []); } catch (_) { rows = []; } const body = document.querySelector('#deviceRows, #devRows'); if (!body) return; body.innerHTML = rows.length ? rows.map((x) => { const online = x.online_status === 'online' && x.status === 'active'; return `<tr><td>${esc(x.license_key || x.key_prefix || '')}</td><td>${esc(x.device_name || '未命名设备')}</td><td>${online ? '<span class="layui-badge layui-bg-green">在线</span>' : '<span class="layui-badge layui-bg-gray">离线</span>'}</td><td>${esc(x.last_seen_at || '')}</td><td>${esc(x.last_run_version || '-')}</td></tr>`; }).join('') : '<tr><td colspan="5" class="empty">暂无设备</td></tr>'; };
+  const section = document.querySelector('#devices'); const head = section?.querySelector('thead tr'); if (head) head.innerHTML = '<th>卡密</th><th>设备名称</th><th>在线情况</th><th>最后心跳</th><th>最后运行版本</th>'; window.renderDevicesOnline = renderDevicesOnline; document.querySelectorAll('[data-view="devices"]').forEach((x) => x.addEventListener('click', () => setTimeout(renderDevicesOnline, 0))); document.addEventListener('DOMContentLoaded', renderDevicesOnline); setTimeout(renderDevicesOnline, 140);
 })();
 // 云函数测试、回滚和执行审计入口。
 (function(){
