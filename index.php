@@ -30,7 +30,7 @@ if (str_starts_with($path, '/admin') && empty($_SESSION['admin_entry_verified'])
 if ($method === 'GET' && $path === '/api/v3/products/release') {
     $code=trim((string)($_GET['product_code']??''));
     if($code==='')json_response(['error'=>'product_code_required'],400);
-    $q=$db->prepare('SELECT p.status,pc.version,pc.update_url,pc.announcement_enabled,pc.announcement_title,pc.announcement FROM products p LEFT JOIN product_configs pc ON pc.product_id=p.id WHERE p.code=?'); $q->execute([$code]); $release=$q->fetch(PDO::FETCH_ASSOC);
+    $q=$db->prepare('SELECT p.status,pc.version,pc.min_version,pc.force_update,pc.update_url,pc.announcement_enabled,pc.announcement_title,pc.announcement FROM products p LEFT JOIN product_configs pc ON pc.product_id=p.id WHERE p.code=?'); $q->execute([$code]); $release=$q->fetch(PDO::FETCH_ASSOC);
     if(!$release)json_response(['error'=>'product_not_found'],404); if($release['status']!=='active')json_response(['error'=>'product_disabled'],403);
     json_response(['public_release'=>true,'release'=>['version'=>$release['version'],'min_version'=>$release['min_version'],'force_update'=>(bool)$release['force_update'],'update_url'=>$release['update_url']],'announcement'=>['enabled'=>(bool)$release['announcement_enabled'],'title'=>$release['announcement_title'],'content'=>$release['announcement']],'server_time'=>gmdate('c')]);
 }
