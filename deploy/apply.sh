@@ -7,14 +7,46 @@ BACKUP_ROOT="/opt/${APP_NAME}-backups"
 RELEASE_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 STAMP="$(date -u +%Y%m%d-%H%M%S)"
 BACKUP_DIR="${BACKUP_ROOT}/release-${STAMP}"
+ENV_DIR="/etc/${APP_NAME}"
+ENV_FILE="${ENV_DIR}/${APP_NAME}.env"
 
 log() { printf '[apply] %s\n' "$*"; }
 die() { printf '[apply] ERROR: %s\n' "$*" >&2; exit 1; }
 trap 'printf "[apply] ERROR at line %s\n" "$LINENO" >&2' ERR
 
+ensure_runtime_env() {
+  install -d -m 0700 -o root -g root "${ENV_DIR}"
+  if [[ ! -s "${ENV_FILE}" ]]; then
+    local temporary
+    umask 077
+    temporary="$(mktemp "${ENV_DIR}/.${APP_NAME}.env.XXXXXX")"
+    {
+      printf 'APP_ENV=production\n'
+      printf 'LICENSE_KEY_PEPPER=%s\n' "$(openssl rand -hex 32)"
+      printf 'REQUEST_HMAC_SECRET=%s\n' "$(openssl rand -hex 32)"
+      printf 'LICENSE_MANAGE_SECRET=%s\n' "$(openssl rand -hex 32)"
+    } > "${temporary}"
+    chown root:root "${temporary}"
+    chmod 0600 "${temporary}"
+    mv -f -- "${temporary}" "${ENV_FILE}"
+    log "generated protected runtime secret file ${ENV_FILE}"
+  fi
+  set -a
+  # shellcheck disable=SC1090
+  . "${ENV_FILE}"
+  set +a
+  [[ "${APP_ENV:-}" == "production" ]] || die "APP_ENV=production is required in ${ENV_FILE}"
+  local name value
+  for name in LICENSE_KEY_PEPPER REQUEST_HMAC_SECRET LICENSE_MANAGE_SECRET; do
+    value="${!name:-}"
+    [[ "${value}" =~ ^[A-Za-z0-9+/_=-]{32,}$ ]] || die "${name} is missing or too short in ${ENV_FILE}"
+  done
+}
+
 [[ "${EUID}" -eq 0 ]] || die "run as root"
 [[ -f "${RELEASE_ROOT}/index.php" ]] || die "index.php missing from release"
 [[ -f "${RELEASE_ROOT}/bootstrap.php" ]] || die "bootstrap.php missing from release"
+[[ -f "${RELEASE_ROOT}/deploy/migrate_runtime_secrets.php" ]] || die "runtime secret migration script missing"
 [[ -f "${RELEASE_ROOT}/script_executor.mjs" ]] || die "script_executor.mjs missing from release"
 [[ -f "${RELEASE_ROOT}/deploy/nginx/license-mvp" ]] || die "Nginx site config missing"
 [[ -f "${RELEASE_ROOT}/deploy/nginx/license-mvp-security.conf" ]] || die "Nginx security config missing"
@@ -36,6 +68,11 @@ if [[ -z "${FPM_SERVICE}" ]]; then
   FPM_SERVICE="php8.2-fpm"
 fi
 systemctl cat "${FPM_SERVICE}" >/dev/null 2>&1 || die "PHP-FPM service not found: ${FPM_SERVICE}"
+FPM_DROPIN_DIR="/etc/systemd/system/${FPM_SERVICE}.service.d"
+FPM_DROPIN="${FPM_DROPIN_DIR}/license-mvp-env.conf"
+FPM_POOL_CONFIG="$(find /etc/php /etc/php-fpm.d -type f -name "${APP_NAME}.conf" -print -quit 2>/dev/null || true)"
+[[ -n "${FPM_POOL_CONFIG}" ]] || die "PHP-FPM pool config not found: ${APP_NAME}.conf"
+ensure_runtime_env
 
 mkdir -p "${BACKUP_DIR}"
 if [[ -d "${INSTALL_DIR}" ]]; then
@@ -59,6 +96,9 @@ backup_path /etc/nginx/sites-enabled/license-mvp
 backup_path /usr/local/libexec/license-script-runner
 backup_path /etc/sudoers.d/license-script-runner
 backup_path /usr/local/lib/license-mvp-script-runner/script_executor.mjs
+backup_path "${ENV_FILE}"
+backup_path "${FPM_DROPIN}"
+backup_path "${FPM_POOL_CONFIG}"
 
 mkdir -p "${INSTALL_DIR}"
 log "sync application source from ${RELEASE_ROOT}"
@@ -81,6 +121,12 @@ rsync -a \
 # Remove stale generated export left by older releases.
 rm -f -- "$INSTALL_DIR/admin-data.json"
 
+log "migrate runtime secrets"
+if [[ -s "${INSTALL_DIR}/storage.sqlite" ]]; then
+  LEGACY_LICENSE_KEY_PEPPER='change-this-development-pepper' \
+  LEGACY_LICENSE_MANAGE_SECRET='change-this-management-secret-32chars' \
+  php "${RELEASE_ROOT}/deploy/migrate_runtime_secrets.php" --db "${INSTALL_DIR}/storage.sqlite"
+fi
 
 chown -R "${APP_NAME}:${NGINX_USER}" "${INSTALL_DIR}"
 find "${INSTALL_DIR}" -type d -exec chmod 0750 {} +
@@ -117,6 +163,20 @@ if [[ -d /etc/nginx/sites-enabled ]]; then
   ln -sfn /etc/nginx/sites-available/license-mvp /etc/nginx/sites-enabled/license-mvp
 fi
 
+log "install PHP-FPM runtime secret environment"
+install -d -m 0755 "${FPM_DROPIN_DIR}"
+cat > "${FPM_DROPIN}" <<EOF
+[Service]
+EnvironmentFile=${ENV_FILE}
+EOF
+chown root:root "${FPM_DROPIN}"
+chmod 0644 "${FPM_DROPIN}"
+if grep -Eq '^[[:space:]]*clear_env[[:space:]]*=' "${FPM_POOL_CONFIG}"; then
+  sed -i -E 's/^[[:space:]]*clear_env[[:space:]]*=.*/clear_env = no/' "${FPM_POOL_CONFIG}"
+else
+  printf '\nclear_env = no\n' >> "${FPM_POOL_CONFIG}"
+fi
+
 log "validate PHP and Nginx"
 php -l "${INSTALL_DIR}/index.php" >/dev/null
 php -l "${INSTALL_DIR}/bootstrap.php" >/dev/null
@@ -124,7 +184,8 @@ nginx -t >/dev/null
 
 log "reload ${FPM_SERVICE} and nginx"
 systemctl enable "${FPM_SERVICE}" >/dev/null
-systemctl reload "${FPM_SERVICE}"
+systemctl daemon-reload
+systemctl restart "${FPM_SERVICE}"
 systemctl enable nginx >/dev/null
 systemctl reload nginx
 

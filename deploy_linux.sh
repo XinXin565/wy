@@ -10,6 +10,8 @@ IP_ADDRESS=""
 EMAIL=""
 REPO_URL="https://github.com/XinXin565/wy.git"
 REPO_REF="main"
+ENV_DIR="/etc/${APP_NAME}"
+ENV_FILE="${ENV_DIR}/${APP_NAME}.env"
 
 usage() {
   cat <<'EOF'
@@ -22,6 +24,35 @@ Requirements:
   - For --ip, use this server's public IPv4 address. IP certificates are short-lived.
   - TCP ports 80 and 443 must be open in the firewall/security group.
 EOF
+}
+
+ensure_runtime_env() {
+  install -d -m 0700 -o root -g root "${ENV_DIR}"
+  if [[ ! -s "${ENV_FILE}" ]]; then
+    local temporary
+    umask 077
+    temporary="$(mktemp "${ENV_DIR}/.${APP_NAME}.env.XXXXXX")"
+    {
+      printf 'APP_ENV=production\n'
+      printf 'LICENSE_KEY_PEPPER=%s\n' "$(openssl rand -hex 32)"
+      printf 'REQUEST_HMAC_SECRET=%s\n' "$(openssl rand -hex 32)"
+      printf 'LICENSE_MANAGE_SECRET=%s\n' "$(openssl rand -hex 32)"
+    } > "${temporary}"
+    chown root:root "${temporary}"
+    chmod 0600 "${temporary}"
+    mv -f -- "${temporary}" "${ENV_FILE}"
+    echo "Generated protected runtime secret file ${ENV_FILE}."
+  fi
+  set -a
+  # shellcheck disable=SC1090
+  . "${ENV_FILE}"
+  set +a
+  [[ "${APP_ENV:-}" == "production" ]] || { echo "APP_ENV=production is required in ${ENV_FILE}." >&2; exit 1; }
+  local name value
+  for name in LICENSE_KEY_PEPPER REQUEST_HMAC_SECRET LICENSE_MANAGE_SECRET; do
+    value="${!name:-}"
+    [[ "${value}" =~ ^[A-Za-z0-9+/_=-]{32,}$ ]] || { echo "${name} is missing or too short in ${ENV_FILE}." >&2; exit 1; }
+  done
 }
 
 while (($#)); do
@@ -83,6 +114,10 @@ else
   echo "Unsupported distribution. Use Debian/Ubuntu or RHEL-compatible Linux." >&2; exit 1
 fi
 
+ensure_runtime_env
+FPM_DROPIN_DIR="/etc/systemd/system/${FPM_SERVICE}.service.d"
+FPM_DROPIN="${FPM_DROPIN_DIR}/license-mvp-env.conf"
+
 # When invoked through curl | bash, fetch the project automatically. A local
 # checkout is still accepted, which makes upgrades and offline testing easier.
 if [[ ! -f "$SOURCE_DIR/index.php" || ! -f "$SOURCE_DIR/bootstrap.php" ]]; then
@@ -95,6 +130,7 @@ if [[ ! -f "$SOURCE_DIR/index.php" || ! -f "$SOURCE_DIR/bootstrap.php" ]]; then
   SOURCE_DIR="$(dirname "$(find "$FETCH_DIR" -type f -name index.php -print -quit)")"
   [[ -f "$SOURCE_DIR/bootstrap.php" ]] || { echo "Downloaded repository does not contain the application." >&2; exit 1; }
 fi
+[[ -f "$SOURCE_DIR/deploy/migrate_runtime_secrets.php" ]] || { echo "Runtime secret migration script is missing." >&2; exit 1; }
 
 CERTBOT_BIN="$(command -v certbot)"
 if [[ -n "$IP_ADDRESS" ]] && ! "$CERTBOT_BIN" --help all 2>/dev/null | grep -q -- '--preferred-profile'; then
@@ -157,7 +193,16 @@ php_admin_flag[expose_php] = Off
 php_admin_value[session.cookie_httponly] = 1
 php_admin_value[session.cookie_secure] = 1
 php_admin_value[session.cookie_samesite] = Lax
+clear_env = no
 EOF
+
+install -d -m 0755 "${FPM_DROPIN_DIR}"
+cat > "${FPM_DROPIN}" <<EOF
+[Service]
+EnvironmentFile=${ENV_FILE}
+EOF
+chown root:root "${FPM_DROPIN}"
+chmod 0644 "${FPM_DROPIN}"
 
 NGINX_CONF="/etc/nginx/conf.d/${APP_NAME}.conf"
 if [[ -d /etc/nginx/sites-available ]]; then
@@ -197,6 +242,7 @@ if [[ -d /etc/nginx/sites-enabled ]]; then
 fi
 
 systemctl enable "$FPM_SERVICE"
+systemctl daemon-reload
 systemctl restart "$FPM_SERVICE"
 nginx -t
 systemctl enable nginx
@@ -223,6 +269,9 @@ $q->execute([password_hash(getenv("ADMIN_PASSWORD"), PASSWORD_DEFAULT), "admin"]
 else
   APP_DIR="$INSTALL_DIR" php -r 'require getenv("APP_DIR") . "/bootstrap.php";'
 fi
+LEGACY_LICENSE_KEY_PEPPER='change-this-development-pepper' \
+LEGACY_LICENSE_MANAGE_SECRET='change-this-management-secret-32chars' \
+php "$SOURCE_DIR/deploy/migrate_runtime_secrets.php" --db "$INSTALL_DIR/storage.sqlite"
 chown "$APP_NAME:$NGINX_USER" "$INSTALL_DIR/storage.sqlite" 2>/dev/null || true
 chmod 0600 "$INSTALL_DIR/storage.sqlite" 2>/dev/null || true
 
@@ -260,7 +309,9 @@ server {
     }
     location ~ \.php$ { return 404; }
     location ~ /\.(?!well-known).* { deny all; }
-    location ~* \.(?:pem|sqlite|sqlite3|bak|log)$ { deny all; }
+    # Never serve source, deployment, metadata, or credential files.
+    location = /admin-data.json { return 404; }
+    location ~* \.(?:json|md|sh|ps1|bat|mjs|sqlite|sqlite3|pem|key|bak|log|obj|pdb|ilk|exe|rnd)$ { return 404; }
 }
 EOF
 fi
