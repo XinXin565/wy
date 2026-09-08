@@ -18,9 +18,10 @@ if (in_array($method, ['GET', 'POST'], true) && preg_match('#^/([A-Za-z0-9_-]{6,
         $path = admin_user() ? '/admin' : '/admin/login';
     }
 }
-// A session obtained from the safe entry is not enough to make the real page
-// URLs valid. Only an internally mapped request may render these two routes.
-if (!$entryMapped && in_array($path, ['/admin', '/admin/login'], true)) {
+// A session obtained from the safe entry permits the internal admin routes
+// after the initial mapping (for example, the POST /admin/login redirect to
+// /admin). Unverified direct requests remain hidden with a 404 response.
+if (!$entryMapped && empty($_SESSION['admin_entry_verified']) && in_array($path, ['/admin', '/admin/login'], true)) {
     http_response_code(404);
     echo 'Not Found';
     exit;
