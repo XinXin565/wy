@@ -52,7 +52,35 @@ if ($adminCount === 0) {
 }
 $entrySetting = $db->prepare('SELECT value FROM system_settings WHERE key=?');
 $entrySetting->execute(['admin_entry_password_hash']);
-if (!$entrySetting->fetchColumn()) $db->prepare('INSERT OR REPLACE INTO system_settings(key,value,updated_at) VALUES(?,?,?)')->execute(['admin_entry_password_hash', password_hash('XinXin', PASSWORD_DEFAULT), gmdate('c')]);
+$existingEntryHash = (string)$entrySetting->fetchColumn();
+$runtimeEnvironment = strtolower(trim((string)(getenv('APP_ENV') ?: '')));
+if ($runtimeEnvironment === '') {
+    $runtimeEnvironment = in_array(PHP_SAPI, ['cli', 'cli-server'], true) ? 'development' : 'production';
+}
+$configuredEntryPath = trim((string)(getenv('LICENSE_ADMIN_ENTRY_PATH') ?: ''));
+if ($configuredEntryPath !== '' && !preg_match('/^[A-Za-z0-9_-]{32,64}$/', $configuredEntryPath)) {
+    throw new RuntimeException('LICENSE_ADMIN_ENTRY_PATH must be 32-64 URL-safe characters');
+}
+if ($existingEntryHash === '') {
+    if ($configuredEntryPath === '') {
+        if ($runtimeEnvironment === 'production') {
+            throw new RuntimeException('LICENSE_ADMIN_ENTRY_PATH is required in production');
+        }
+        $configuredEntryPath = 'XinXin';
+    }
+    $now = gmdate('c');
+    $db->prepare('INSERT OR REPLACE INTO system_settings(key,value,updated_at) VALUES(?,?,?)')->execute(['admin_entry_password_hash', password_hash($configuredEntryPath, PASSWORD_DEFAULT), $now]);
+    $db->prepare('INSERT OR REPLACE INTO system_settings(key,value,updated_at) VALUES(?,?,?)')->execute(['admin_entry_created_at', $now, $now]);
+} elseif (password_verify('XinXin', $existingEntryHash)) {
+    if ($runtimeEnvironment === 'production' && $configuredEntryPath === '') {
+        throw new RuntimeException('LICENSE_ADMIN_ENTRY_PATH is required to rotate the default admin entry');
+    }
+    if ($configuredEntryPath !== '') {
+        $now = gmdate('c');
+        $db->prepare('UPDATE system_settings SET value=?,updated_at=? WHERE key=?')->execute([password_hash($configuredEntryPath, PASSWORD_DEFAULT), $now, 'admin_entry_password_hash']);
+        $db->prepare('INSERT OR REPLACE INTO system_settings(key,value,updated_at) VALUES(?,?,?)')->execute(['admin_entry_rotated_at', $now, $now]);
+    }
+}
 function admin_user(): ?array { return isset($_SESSION['admin_id'], $_SESSION['admin_role']) ? ['id'=>$_SESSION['admin_id'], 'username'=>$_SESSION['admin_username'] ?? 'admin', 'role'=>$_SESSION['admin_role']] : null; }
 function require_admin(array $roles = []): array {
     $user = admin_user();

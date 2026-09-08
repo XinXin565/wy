@@ -37,11 +37,16 @@ ensure_runtime_env() {
       printf 'LICENSE_KEY_PEPPER=%s\n' "$(openssl rand -hex 32)"
       printf 'REQUEST_HMAC_SECRET=%s\n' "$(openssl rand -hex 32)"
       printf 'LICENSE_MANAGE_SECRET=%s\n' "$(openssl rand -hex 32)"
+      printf 'LICENSE_ADMIN_ENTRY_PATH=%s\n' "$(openssl rand -hex 24)"
     } > "${temporary}"
     chown root:root "${temporary}"
     chmod 0600 "${temporary}"
     mv -f -- "${temporary}" "${ENV_FILE}"
     echo "Generated protected runtime secret file ${ENV_FILE}."
+  fi
+  if ! grep -q '^LICENSE_ADMIN_ENTRY_PATH=' "${ENV_FILE}"; then
+    printf 'LICENSE_ADMIN_ENTRY_PATH=%s\n' "$(openssl rand -hex 24)" >> "${ENV_FILE}"
+    chmod 0600 "${ENV_FILE}"
   fi
   set -a
   # shellcheck disable=SC1090
@@ -53,6 +58,7 @@ ensure_runtime_env() {
     value="${!name:-}"
     [[ "${value}" =~ ^[A-Za-z0-9+/_=-]{32,}$ ]] || { echo "${name} is missing or too short in ${ENV_FILE}." >&2; exit 1; }
   done
+  [[ "${LICENSE_ADMIN_ENTRY_PATH:-}" =~ ^[A-Za-z0-9_-]{32,64}$ ]] || { echo "LICENSE_ADMIN_ENTRY_PATH is missing or invalid in ${ENV_FILE}." >&2; exit 1; }
 }
 
 while (($#)); do
