@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+exec /usr/bin/systemd-run --quiet --pipe --wait --collect \
+  -p User=script-runner -p Group=script-runner \
+  -p NoNewPrivileges=yes -p PrivateNetwork=yes -p PrivateTmp=yes \
+  -p ProtectSystem=strict -p ProtectHome=yes -p PrivateDevices=yes \
+  -p RestrictAddressFamilies=AF_UNIX -p RestrictNamespaces=yes \
+  -p LockPersonality=yes -p MemoryMax=512M -p TasksMax=16 \
+  /usr/bin/timeout --signal=KILL 3s /usr/bin/node /usr/local/lib/license-mvp-script-runner/script_executor.mjs

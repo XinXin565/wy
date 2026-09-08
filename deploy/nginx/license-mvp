@@ -1,0 +1,60 @@
+server {
+    server_name xg.app.hr;
+    root /opt/license-mvp;
+    index index.php;
+    client_max_body_size 2m;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header Permissions-Policy "camera=(), geolocation=(), microphone=()" always;
+    add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:" always;
+
+    location = /admin/login {
+        limit_req zone=license_admin burst=5 nodelay;
+        try_files "" /index.php?$query_string;
+    }
+
+    location ~ "^/[A-Za-z0-9_-]{6,64}$" {
+        limit_req zone=license_admin burst=3 nodelay;
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location = /index.php {
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root/index.php;
+        fastcgi_param SCRIPT_NAME /index.php;
+        fastcgi_pass unix:/run/php/license-mvp.sock;
+        fastcgi_read_timeout 60s;
+    }
+
+    location ~ \.php$ { return 404; }
+    location ~ /\.(?!well-known).* { deny all; }
+    location ~* \.(?:pem|sqlite|sqlite3|bak|log)$ { deny all; }
+
+    listen [::]:443 ssl ipv6only=on; # managed by Certbot
+    listen 443 ssl; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/xg.app.hr/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/xg.app.hr/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+
+}
+server {
+    if ($host = xg.app.hr) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+
+
+    listen 80;
+    listen [::]:80;
+    server_name xg.app.hr;
+    return 404; # managed by Certbot
+
+
+}
