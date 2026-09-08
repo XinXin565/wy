@@ -68,8 +68,10 @@ if [[ -z "${FPM_SERVICE}" ]]; then
   FPM_SERVICE="php8.2-fpm"
 fi
 systemctl cat "${FPM_SERVICE}" >/dev/null 2>&1 || die "PHP-FPM service not found: ${FPM_SERVICE}"
-FPM_DROPIN_DIR="/etc/systemd/system/${FPM_SERVICE}.service.d"
+FPM_UNIT="${FPM_SERVICE%.service}"
+FPM_DROPIN_DIR="/etc/systemd/system/${FPM_UNIT}.service.d"
 FPM_DROPIN="${FPM_DROPIN_DIR}/license-mvp-env.conf"
+LEGACY_FPM_DROPIN="/etc/systemd/system/${FPM_SERVICE}.service.d/license-mvp-env.conf"
 FPM_POOL_CONFIG="$(find /etc/php /etc/php-fpm.d -type f -name "${APP_NAME}.conf" -print -quit 2>/dev/null || true)"
 [[ -n "${FPM_POOL_CONFIG}" ]] || die "PHP-FPM pool config not found: ${APP_NAME}.conf"
 ensure_runtime_env
@@ -99,6 +101,10 @@ backup_path /usr/local/lib/license-mvp-script-runner/script_executor.mjs
 backup_path "${ENV_FILE}"
 backup_path "${FPM_DROPIN}"
 backup_path "${FPM_POOL_CONFIG}"
+if [[ "${LEGACY_FPM_DROPIN}" != "${FPM_DROPIN}" && -e "${LEGACY_FPM_DROPIN}" ]]; then
+  rm -f -- "${LEGACY_FPM_DROPIN}"
+  rmdir --ignore-fail-on-non-empty "$(dirname "${LEGACY_FPM_DROPIN}")" 2>/dev/null || true
+fi
 
 mkdir -p "${INSTALL_DIR}"
 log "sync application source from ${RELEASE_ROOT}"

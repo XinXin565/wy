@@ -115,7 +115,8 @@ else
 fi
 
 ensure_runtime_env
-FPM_DROPIN_DIR="/etc/systemd/system/${FPM_SERVICE}.service.d"
+FPM_UNIT="${FPM_SERVICE%.service}"
+FPM_DROPIN_DIR="/etc/systemd/system/${FPM_UNIT}.service.d"
 FPM_DROPIN="${FPM_DROPIN_DIR}/license-mvp-env.conf"
 
 # When invoked through curl | bash, fetch the project automatically. A local
