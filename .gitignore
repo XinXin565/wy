@@ -6,3 +6,7 @@ node_modules/
 cpp_client/*.obj
 cpp_client/*.pdb
 cpp_client/*.ilk
+
+# Generated administrative export; never commit or serve
+admin-data.json
+admin-data*.json

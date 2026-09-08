@@ -115,9 +115,12 @@ install -d -m 0750 -o "$APP_NAME" -g "$NGINX_USER" "$INSTALL_DIR"
 # Do not replace live database, RSA keys, backups, or local development files on updates.
 rsync -a \
   --exclude '.git/' --exclude 'storage.sqlite*' --exclude 'rsa_private.pem' --exclude 'rsa_public.pem' \
-  --exclude 'keys-backup/' --exclude 'php-runtime/' --exclude 'node_modules/' --exclude 'cpp_client/' \
+  --exclude 'keys-backup/' --exclude 'admin-data.json' --exclude 'php-runtime/' --exclude 'node_modules/' --exclude 'cpp_client/' \
   --exclude '*.obj' --exclude '*.pdb' --exclude '*.ilk' --exclude '*.backup-*' \
   "$SOURCE_DIR/" "$INSTALL_DIR/"
+# Remove stale generated export left by older releases.
+rm -f -- "$INSTALL_DIR/admin-data.json"
+
 
 chown -R "$APP_NAME:$NGINX_USER" "$INSTALL_DIR"
 find "$INSTALL_DIR" -type d -exec chmod 0750 {} +
@@ -183,7 +186,9 @@ server {
 
     location ~ \.php$ { return 404; }
     location ~ /\.(?!well-known).* { deny all; }
-    location ~* \.(?:pem|sqlite|sqlite3|bak|log)$ { deny all; }
+    # Never serve source, deployment, metadata, or credential files.
+    location = /admin-data.json { return 404; }
+    location ~* \.(?:json|md|sh|ps1|bat|mjs|sqlite|sqlite3|pem|key|bak|log|obj|pdb|ilk|exe|rnd)$ { return 404; }
 }
 EOF
 if [[ -d /etc/nginx/sites-enabled ]]; then

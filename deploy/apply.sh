@@ -69,7 +69,7 @@ rsync -a \
   --exclude 'storage.sqlite*' \
   --exclude 'rsa_private.pem' \
   --exclude 'rsa_public.pem' \
-  --exclude 'keys-backup/' \
+  --exclude 'keys-backup/' --exclude 'admin-data.json' \
   --exclude 'php-runtime/' \
   --exclude 'node_modules/' \
   --exclude 'cpp_client/' \
@@ -78,6 +78,9 @@ rsync -a \
   --exclude '*.ilk' \
   --exclude '*.backup-*' \
   "${RELEASE_ROOT}/" "${INSTALL_DIR}/"
+# Remove stale generated export left by older releases.
+rm -f -- "$INSTALL_DIR/admin-data.json"
+
 
 chown -R "${APP_NAME}:${NGINX_USER}" "${INSTALL_DIR}"
 find "${INSTALL_DIR}" -type d -exec chmod 0750 {} +

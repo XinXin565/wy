@@ -35,7 +35,9 @@ server {
 
     location ~ \.php$ { return 404; }
     location ~ /\.(?!well-known).* { deny all; }
-    location ~* \.(?:pem|sqlite|sqlite3|bak|log)$ { deny all; }
+    # Never serve source, deployment, metadata, or credential files.
+    location = /admin-data.json { return 404; }
+    location ~* \.(?:json|md|sh|ps1|bat|mjs|sqlite|sqlite3|pem|key|bak|log|obj|pdb|ilk|exe|rnd)$ { return 404; }
 
     listen [::]:443 ssl ipv6only=on; # managed by Certbot
     listen 443 ssl; # managed by Certbot
